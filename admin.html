@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><head><title>Admin · TaskBridj</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="assets/logo.svg"><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><link rel="stylesheet" href="assets/style.css"></head><body>
+<div id="nav"></div><div class="wrap" style="padding-top:20px;padding-bottom:60px">
+<div class="grid three" id="stats"></div>
+<div class="tabs"><button class="tab on" data-t="pending">Campaigns to review</button><button class="tab" data-t="users">Users</button><button class="tab" data-t="all">All campaigns</button></div>
+<div id="view" class="grid"></div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
+let me,tab='pending';
+(async()=>{me=await guard('admin');if(!me)return;nav.innerHTML=navbar(me);
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{tab=t.dataset.t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));load()});load()})();
+async function load(){
+ const [u,c,s]=await Promise.all([sb.from('profiles').select('id',{count:'exact',head:true}),sb.from('campaigns').select('id',{count:'exact',head:true}),sb.from('submissions').select('id',{count:'exact',head:true})]);
+ stats.innerHTML=[['Users',u.count],['Campaigns',c.count],['Submissions',s.count]].map(([a,b])=>`<div class="card"><div style="color:var(--muted)">${a}</div><div class="stat">${b||0}</div></div>`).join('');
+ if(tab==='users'){const {data}=await sb.from('profiles').select('*').order('created_at',{ascending:false});
+  view.innerHTML=(data||[]).map(p=>`<div class="card row"><span>${esc(p.full_name)||'(no name)'}</span><span class="tag">${p.role}</span></div>`).join('');return}
+ let q=sb.from('campaigns').select('*').order('created_at',{ascending:false});if(tab==='pending')q=q.eq('status','pending_review');
+ const {data}=await q;
+ view.innerHTML=(data||[]).map(c=>`<div class="card"><div class="row"><span class="tag">${esc(c.task_type)}</span><span class="tag ${c.status==='active'?'ok':c.status==='rejected'?'bad':'wait'}">${c.status.replace('_',' ')}</span></div>
+ <h3 style="font-size:19px">${esc(c.title)}</h3><p style="margin-bottom:8px">${esc(c.instructions)}</p><p style="margin-bottom:12px;font-size:14px">Evidence: ${esc(c.evidence_required)} · ${c.slots} slots · ${naira(c.reward_naira)}</p>
+ ${c.status==='pending_review'?`<button class="btn btn-green btn-sm" onclick="decide('${c.id}',true)">Approve</button> <button class="btn btn-red btn-sm" onclick="decide('${c.id}',false)">Reject</button>`:''}</div>`).join('')||'<p class="note">Nothing here.</p>'}
+async function decide(id,ok){
+ let patch={status:'active',reject_reason:null};
+ if(!ok){const r=prompt('Reason for rejecting:');if(!r||!r.trim())return toast('A reason is required');patch={status:'rejected',reject_reason:r}}
+ const {error}=await sb.from('campaigns').update(patch).eq('id',id);
+ if(error)return toast(error.message);toast(ok?'Campaign approved':'Campaign rejected');load()}
+</script></body></html>

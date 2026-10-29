@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><title>Sign up · TaskBridj</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="assets/logo.svg"><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><link rel="stylesheet" href="assets/style.css"></head><body>
+<div class="nav"><div class="nav-in"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="">TaskBridj</a><a href="login.html">Log in</a></div></div>
+<div class="auth"><h1 style="font-size:30px">Create your account</h1>
+<div class="tabs"><button class="tab" data-r="participant">I want to earn</button><button class="tab" data-r="business">I need testers</button></div>
+<label>Full name<input id="name" autocomplete="name"></label>
+<label>Email<input id="email" type="email" autocomplete="email"></label>
+<label>Password (8+ characters)<input id="pw" type="password" autocomplete="new-password"></label>
+<button id="go" class="btn btn-blue block" style="margin-top:22px">Sign up</button>
+<p class="note">Already have an account? <a href="login.html" style="color:#60a5fa">Log in</a></p></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
+let role=new URLSearchParams(location.search).get('role')==='business'?'business':'participant';
+const tabs=[...document.querySelectorAll('.tab')];
+const paint=()=>tabs.forEach(t=>t.classList.toggle('on',t.dataset.r===role));
+tabs.forEach(t=>t.onclick=()=>{role=t.dataset.r;paint()});paint();
+go.onclick=async()=>{
+ if(!name.value.trim()||!email.value||pw.value.length<8)return toast('Enter your name, email and a password of 8+ characters');
+ go.disabled=true;
+ const {data,error}=await sb.auth.signUp({email:email.value.trim(),password:pw.value,options:{data:{full_name:name.value.trim(),role}}});
+ go.disabled=false;
+ if(error)return toast(error.message);
+ if(data.session){location.href=HOME[role]}else toast('Check your email to confirm your account, then log in.');
+};
+</script></body></html>

@@ -1,0 +1,19 @@
+<!doctype html><html lang="en"><head><title>Log in · TaskBridj</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="assets/logo.svg"><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><link rel="stylesheet" href="assets/style.css"></head><body>
+<div class="nav"><div class="nav-in"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="">TaskBridj</a><a href="signup.html" class="btn btn-blue btn-sm">Sign up</a></div></div>
+<div class="auth"><h1 style="font-size:30px">Welcome back</h1>
+<label>Email<input id="email" type="email" autocomplete="email"></label>
+<label>Password<input id="pw" type="password" autocomplete="current-password"></label>
+<button id="go" class="btn btn-blue block" style="margin-top:22px">Log in</button>
+<p class="note"><a href="#" id="forgot" style="color:#60a5fa">Forgot password?</a> · <a href="signup.html" style="color:#60a5fa">Create account</a></p></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
+go.onclick=async()=>{
+ go.disabled=true;
+ const {error}=await sb.auth.signInWithPassword({email:email.value.trim(),password:pw.value});
+ go.disabled=false;
+ if(error)return toast('Email or password is incorrect');
+ const p=await getProfile(); location.href=HOME[p.role];
+};
+forgot.onclick=async e=>{e.preventDefault();if(!email.value)return toast('Enter your email first');
+ const {error}=await sb.auth.resetPasswordForEmail(email.value.trim(),{redirectTo:location.origin+location.pathname});
+ toast(error?error.message:'Password reset link sent to your email');};
+</script></body></html>

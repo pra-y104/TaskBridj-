@@ -1,0 +1,47 @@
+<!doctype html><html lang="en"><head><title>Business · TaskBridj</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="assets/logo.svg"><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><link rel="stylesheet" href="assets/style.css"></head><body>
+<div id="nav"></div><div class="wrap" style="padding-top:20px;padding-bottom:60px">
+<div class="tabs"><button class="tab on" data-t="camps">My campaigns</button><button class="tab" data-t="new">Create campaign</button></div>
+<div id="view"></div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
+let me;
+(async()=>{me=await guard('business');if(!me)return;nav.innerHTML=navbar(me);
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));t.dataset.t==='new'?form():camps()});camps()})();
+const stTag=s=>s==='active'?'ok':s==='rejected'?'bad':'wait';
+async function camps(){
+ view.innerHTML='<p class="note">Loading…</p>';
+ const {data}=await sb.from('campaigns').select('*').order('created_at',{ascending:false});
+ view.innerHTML='<div class="grid">'+((data||[]).map(c=>`<div class="card"><div class="row"><span class="tag">${esc(c.task_type)}</span><span class="tag ${stTag(c.status)}">${c.status.replace('_',' ')}</span></div>
+ <h3 style="font-size:19px">${esc(c.title)}</h3><p style="margin-bottom:10px">${c.slots} participants · ${naira(c.reward_naira)} per approval${c.reject_reason?'<br>Reason: '+esc(c.reject_reason):''}</p>
+ <button class="btn btn-out btn-sm" onclick="subs('${c.id}',this)">Review submissions</button><div id="s-${c.id}" style="margin-top:12px"></div></div>`).join('')||'<p class="note">No campaigns yet. Create your first campaign.</p>')+'</div>'}
+async function subs(id,btn){
+ const box=document.getElementById('s-'+id);box.innerHTML='Loading…';
+ const {data}=await sb.from('submissions').select('*').eq('campaign_id',id).order('created_at');
+ if(!data?.length){box.innerHTML='<p style="color:var(--muted)">No submissions yet.</p>';return}
+ let h='';for(const s of data){
+  let link='';const {data:u}=await sb.storage.from('evidence').createSignedUrl(s.evidence_path,600);if(u)link=`<a href="${u.signedUrl}" target="_blank" rel="noopener" style="color:#60a5fa">View evidence</a>`;
+  h+=`<div style="border-top:1px solid var(--line);padding:12px 0"><div class="row"><span class="tag ${s.status==='approved'?'ok':s.status==='rejected'?'bad':'wait'}">${s.status}</span>${link}</div>
+  <div style="margin:8px 0;color:#c8cfdb;font-size:14px">${(s.answers||[]).map(a=>'• '+esc(a)).join('<br>')}</div>
+  ${s.status==='pending'?`<button class="btn btn-green btn-sm" onclick="review('${s.id}',true,'${id}')">Approve</button> <button class="btn btn-red btn-sm" onclick="review('${s.id}',false,'${id}')">Reject</button>`:s.reject_reason?'Reason: '+esc(s.reject_reason):''}</div>`}
+ box.innerHTML=h}
+async function review(sid,ok,cid){
+ let reason=null;if(!ok){reason=prompt('Reason for rejecting (the participant will see this):');if(!reason||!reason.trim())return toast('A reason is required')}
+ const {error}=await sb.rpc('review_submission',{p_id:sid,p_approve:ok,p_reason:reason});
+ if(error)return toast(error.message);toast(ok?'Approved':'Rejected');subs(cid)}
+function form(){
+ view.innerHTML=`<div class="card" style="max-width:640px"><h3 style="margin-top:0">Create campaign</h3>
+ <label>Campaign title<input id="title"></label>
+ <label>Task type<select id="ttype"><option>App testing</option><option>Website testing</option><option>Survey</option><option>Feedback &amp; research</option></select></label>
+ <label>Instructions<textarea id="ins" rows="4"></textarea></label>
+ <label>Participant requirements<textarea id="req" rows="2"></textarea></label>
+ <label>Questions (one per line)<textarea id="qs" rows="3"></textarea></label>
+ <label>Evidence required<input id="ev" placeholder="e.g. Screenshot of the confirmation page"></label>
+ <div class="grid two"><label>Participants needed<input id="slots" type="number" min="1" value="10"></label><label>Reward per approval (₦)<input id="reward" type="number" min="50" value="500"></label></div>
+ <button id="save" class="btn btn-blue block" style="margin-top:20px">Submit for review</button></div>`;
+ save.onclick=async()=>{
+  const questions=qs.value.split('\n').map(x=>x.trim()).filter(Boolean);
+  if(!title.value.trim()||!ins.value.trim()||!questions.length||!ev.value.trim())return toast('Fill in the title, instructions, questions and evidence');
+  save.disabled=true;
+  const {error}=await sb.from('campaigns').insert({business_id:me.id,title:title.value.trim(),task_type:ttype.value,instructions:ins.value.trim(),requirements:req.value.trim(),questions,evidence_required:ev.value.trim(),slots:+slots.value,reward_naira:+reward.value});
+  save.disabled=false;if(error)return toast(error.message);
+  toast('Submitted. We review campaigns before participants see them.');document.querySelector('[data-t=camps]').click()}}
+</script></body></html>
