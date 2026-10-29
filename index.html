@@ -18,7 +18,7 @@ input,textarea,select{background:#080d1a;border:1px solid #2a3344;border-radius:
 <main id="app" class="max-w-xl mx-auto px-5 py-8"></main>
 <script>
 // === CONFIG: paste your Supabase URL + ANON key (anon key is safe; RLS protects data) ===
-const SUPABASE_URL="https://YOUR-PROJECT.supabase.co", SUPABASE_ANON_KEY="YOUR-ANON-KEY";
+const SUPABASE_URL="https://aauzdmezpyttvzzzupcj.supabase.co", SUPABASE_ANON_KEY="sb_publishable_eQKYKiJZKWuhBoh62viwfQ_8f5QPJpF";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
