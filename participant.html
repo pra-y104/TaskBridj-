@@ -57,4 +57,3 @@ async function work(tid){const {data:t}=await sb.from('my_tasks').select('*').eq
   if(error){send.disabled=false;return toast(error.message)}
   modal.classList.add('hidden');toast('Submitted. Awaiting review.');load()}}
 </script></body></html>
- 
