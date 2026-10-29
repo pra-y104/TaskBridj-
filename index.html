@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.supabase.co; img-src 'self' data: blob:; frame-ancestors 'none'">
+<title>TaskBridj</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>body{background:#080d1a;color:#fff;font-family:system-ui,sans-serif}
+.card{background:#161d2b;border:1px solid #2a3344;border-radius:1rem;padding:1.25rem}
+.btn{background:#2563eb;border-radius:.75rem;padding:.8rem 1rem;font-weight:600;width:100%;display:block;text-align:center}
+.btn2{border:1px solid #2a3344;background:#080d1a;border-radius:.75rem;padding:.8rem 1rem;font-weight:500;width:100%;display:block;text-align:center}
+input,textarea,select{background:#080d1a;border:1px solid #2a3344;border-radius:.75rem;padding:.7rem;width:100%;margin:.25rem 0 .75rem;color:#fff}
+.m{color:#9aa3b5}</style></head><body>
+<header class="flex items-center justify-between px-5 py-4 border-b border-slate-700" style="background:#0a0f1c">
+<a href="#/" class="flex items-center gap-2 font-bold text-lg">
+<svg width="34" height="34" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#0b1120"/><path d="M24 8C15 8 8 14.5 8 22.5c0 4 1.8 7.5 4.7 10L11 40l7-3c1.9.6 3.9 1 6 1 9 0 16-6.500 16-14.500S33 8 24 8z" fill="none" stroke="#2563eb" stroke-width="3"/><path d="M17 23l5 5 9-10" fill="none" stroke="#2563eb" stroke-width="3.500" stroke-linecap="round" stroke-linejoin="round"/></svg>TaskBridj</a>
+<nav id="nav" class="flex items-center gap-4 text-sm"></nav></header>
+<main id="app" class="max-w-xl mx-auto px-5 py-8"></main>
+<script>
+// === CONFIG: paste your Supabase URL + ANON key (anon key is safe; RLS protects data) ===
+const SUPABASE_URL="https://YOUR-PROJECT.supabase.co", SUPABASE_ANON_KEY="YOUR-ANON-KEY";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const $=s=>document.querySelector(s), app=$('#app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const naira=n=>'₦'+Number(n||0).toLocaleString();
+let me=null;
+async function load(){const{data:{session}}=await sb.auth.getSession();me=null;
+ if(session){const{data}=await sb.from('profiles').select('*').eq('id',session.user.id).single();me=data}
+ nav();route()}
+function nav(){$('#nav').innerHTML=me?`<a href="#/dash" class="m">Dashboard</a><button id="out" class="m">Log out</button>`
+ :`<a href="#/login">Log in</a><a href="#/signup" class="bg-blue-600 rounded-xl px-4 py-2 font-semibold">Sign up</a>`;
+ if(me)$('#out').onclick=async()=>{await sb.auth.signOut();location.hash='#/';load()}}
+function route(){const[,p,q]=(location.hash||'#/').split('/');
+ if(p==='login')return login(); if(p==='signup')return signup(q);
+ if(p==='dash'){ if(!me){location.hash='#/login';return} return ({participant,business,admin}[me.role]||participant)()}
+ home()}
+addEventListener('hashchange',route);
+function home(){app.innerHTML=`<div class="text-center">
+<span class="inline-block border border-slate-700 rounded-full px-4 py-1 text-sm m mb-8">🚀 Phase 1 · Mobile app &amp; website testing</span>
+<h1 class="text-4xl font-extrabold leading-tight mb-5">Turn Real-World Feedback Into Better Products.</h1>
+<p class="m text-lg mb-10">TaskBridj connects businesses with real Nigerian participants for legitimate app and website testing. Clear tasks, reviewed submissions, recorded earnings.</p>
+<h2 class="text-xl font-bold mb-5">What would you like to do?</h2></div>
+<div class="card mb-4"><h3 class="text-xl font-bold mb-2">Get User Insights</h3><p class="m mb-5">Recruit real people for product testing, surveys, feedback and research.</p><a href="#/signup/business" class="btn">Get Started →</a></div>
+<div class="card mb-4"><h3 class="text-xl font-bold mb-2">Earn by Participating</h3><p class="m mb-5">Discover legitimate testing, research and feedback opportunities.</p><a href="#/signup/participant" class="btn2">Explore Opportunities →</a></div>
+<p class="m text-sm text-center mb-12">Earnings depend on approved submissions. No income is guaranteed.</p>
+<h2 class="text-2xl font-bold text-center mb-6">How it works</h2>
+${[['1. A business creates a campaign','Task type, instructions, participant requirements, questions, evidence and reward per approved participant.'],['2. Participants complete the task','Participants accept an available task, follow the instructions, answer the questions and upload the required evidence.'],['3. Reviewed submissions earn','The business or a reviewer approves or rejects with a reason. Approved submissions record earnings for the participant.']].map(([a,b])=>`<div class="card mb-3"><h4 class="font-bold">${a}</h4><p class="m text-sm">${b}</p></div>`).join('')}
+<h2 class="text-2xl font-bold text-center my-6">Trust &amp; safety</h2>
+<div class="card mb-3"><h4 class="font-bold">Reviewed campaigns</h4><p class="m text-sm">Campaigns are reviewed before participants can see them.</p></div>
+<div class="card"><h4 class="font-bold">Private evidence</h4><p class="m text-sm">Uploads are stored privately and only visible to you and authorised reviewers.</p></div>`}
+function authForm(title,extra,btn,alt){return `<div class="card"><h2 class="text-2xl font-bold mb-4">${title}</h2><form id="f">${extra}
+<label class="m text-sm">Email</label><input name="email" type="email" required autocomplete="email">
+<label class="m text-sm">Password</label><input name="password" type="password" required minlength="8" autocomplete="${title==='Log in'?'current-password':'new-password'}">
+<p id="err" class="text-red-400 text-sm mb-2"></p><button class="btn">${btn}</button></form><p class="m text-sm text-center mt-4">${alt}</p></div>`}
+function login(){app.innerHTML=authForm('Log in','','Log in','New here? <a class="text-blue-400" href="#/signup">Sign up</a>');
+ $('#f').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);
+ const{error}=await sb.auth.signInWithPassword({email:f.get('email'),password:f.get('password')});
+ if(error)return $('#err').textContent='Invalid email or password.'; await load();location.hash='#/dash'}}
+function signup(role){role=role==='business'?'business':'participant';
+ app.innerHTML=authForm('Sign up',`<label class="m text-sm">I want to</label><select name="role"><option value="business" ${role==='business'?'selected':''}>Get User Insights</option><option value="participant" ${role==='participant'?'selected':''}>Earn by Participating</option></select><label class="m text-sm">Full name</label><input name="name" required maxlength="80">`,'Create account','Have an account? <a class="text-blue-400" href="#/login">Log in</a>');
+ $('#f').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);
+ const{data,error}=await sb.auth.signUp({email:f.get('email'),password:f.get('password'),options:{data:{full_name:f.get('name'),role:f.get('role')}}});
+ if(error)return $('#err').textContent=error.message;
+ if(!data.session){app.innerHTML='<div class="card text-center">Check your email to confirm your account, then log in.</div>';return}
+ await load();location.hash='#/dash'}}
+const rows=(a,fn,empty)=>a&&a.length?a.map(fn).join(''):`<p class="m">${empty}</p>`;
+async function participant(){
+ const[{data:cs},{data:en},{data:ss}]=await Promise.all([sb.from('campaigns').select('*').eq('status','approved').order('created_at',{ascending:false}),sb.from('earnings').select('amount'),sb.from('submissions').select('campaign_id,status')]);
+ const total=(en||[]).reduce((a,b)=>a+b.amount,0), done=Object.fromEntries((ss||[]).map(s=>[s.campaign_id,s.status])), pend=(ss||[]).filter(s=>s.status==='pending').length;
+ app.innerHTML=`<h2 class="text-2xl font-bold mb-4">Participant dashboard</h2><div class="grid grid-cols-2 gap-3 mb-6"><div class="card"><p class="m text-sm">Earnings</p><p class="text-2xl font-bold" style="color:#10b981">${naira(total)}</p></div><div class="card"><p class="m text-sm">Awaiting review</p><p class="text-2xl font-bold">${pend}</p></div></div><h3 class="font-bold mb-3">Available campaigns</h3>`+
+ rows(cs,c=>`<div class="card mb-3"><h4 class="font-bold">${esc(c.title)}</h4><p class="m text-sm mb-2">${esc(c.task_type)} · ${naira(c.reward_naira)} per approved submission</p>${done[c.id]?`<p class="text-sm">Status: ${esc(done[c.id])}</p>`:`<button class="btn" data-id="${c.id}">Start Task</button>`}</div>`,'No campaigns yet.');
+ app.querySelectorAll('button[data-id]').forEach(b=>b.onclick=()=>doTask(cs.find(c=>c.id===b.dataset.id)))}
+function doTask(c){app.innerHTML=`<div class="card"><h2 class="text-xl font-bold mb-2">${esc(c.title)}</h2><p class="m mb-4" style="white-space:pre-wrap">${esc(c.instructions)}</p><form id="f"><label class="m text-sm">${esc(c.question||'Your feedback')}</label><textarea name="a" rows="4" required maxlength="4000"></textarea><label class="m text-sm">Evidence (image, max 5MB)</label><input name="file" type="file" accept="image/png,image/jpeg,image/webp" required><p id="err" class="text-red-400 text-sm"></p><button class="btn">Submit</button></form></div>`;
+ $('#f').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),file=f.get('file');
+ if(file.size>5e6)return $('#err').textContent='File too large.';
+ const path=`${me.id}/${crypto.randomUUID()}.${file.type.split('/')[1]}`;
+ let r=await sb.storage.from('evidence').upload(path,file,{contentType:file.type});
+ if(r.error)return $('#err').textContent='Upload failed.';
+ r=await sb.from('submissions').insert({campaign_id:c.id,participant_id:me.id,answer:f.get('a'),evidence_path:path});
+ if(r.error)return $('#err').textContent='Could not submit (already submitted?).'; participant()}}
+async function business(){
+ const{data:cs}=await sb.from('campaigns').select('*').order('created_at',{ascending:false});
+ const{data:ss}=await sb.from('submissions').select('*').eq('status','pending');
+ app.innerHTML=`<h2 class="text-2xl font-bold mb-4">Get User Insights</h2><div class="card mb-6"><h3 class="font-bold mb-2">Create a campaign</h3><form id="f"><input name="title" placeholder="Title" required maxlength="120"><select name="type"><option>Mobile app testing</option><option>Website testing</option><option>Survey</option><option>Feedback</option></select><textarea name="ins" placeholder="Instructions" rows="3" required maxlength="4000"></textarea><input name="q" placeholder="Question for participants" maxlength="300"><input name="reward" type="number" min="50" placeholder="Reward per approval (₦)" required><input name="slots" type="number" min="1" max="10000" placeholder="Participants needed" required><p id="err" class="text-red-400 text-sm"></p><button class="btn">Submit for review</button></form></div><h3 class="font-bold mb-3">My campaigns</h3>${rows(cs,c=>`<div class="card mb-3"><b>${esc(c.title)}</b><p class="m text-sm">${naira(c.reward_naira)} × ${c.slots} · ${esc(c.status)}</p></div>`,'None yet.')}<h3 class="font-bold my-3">Submissions to review</h3>${rows(ss,s=>`<div class="card mb-3"><p class="text-sm mb-2">${esc(s.answer)}</p><button class="m text-sm underline" data-ev="${esc(s.evidence_path)}">View evidence</button><input placeholder="Reason (if rejecting)" data-n="${s.id}"><div class="flex gap-2"><button class="btn" data-a="${s.id}">Approve</button><button class="btn2" data-r="${s.id}">Reject</button></div></div>`,'Nothing pending.')}`;
+ $('#f').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);
+ const{error}=await sb.from('campaigns').insert({business_id:me.id,title:f.get('title'),task_type:f.get('type'),instructions:f.get('ins'),question:f.get('q'),reward_naira:+f.get('reward'),slots:+f.get('slots')});
+ if(error)return $('#err').textContent='Check your inputs.';business()};
+ review(business)}
+function review(back){
+ app.querySelectorAll('[data-ev]').forEach(b=>b.onclick=async()=>{const{data}=await sb.storage.from('evidence').createSignedUrl(b.dataset.ev,60);if(data)open(data.signedUrl,'_blank','noopener')});
+ for(const[k,st]of[['a','approved'],['r','rejected']])app.querySelectorAll(`[data-${k}]`).forEach(b=>b.onclick=async()=>{const id=b.dataset[k],n=app.querySelector(`[data-n="${id}"]`).value;
+ if(st==='rejected'&&!n)return alert('Please give a reason.');await sb.from('submissions').update({status:st,review_note:n||null}).eq('id',id);back()})}
+async function admin(){
+ const[{data:cs},{data:us},{data:ss}]=await Promise.all([sb.from('campaigns').select('*').eq('status','pending'),sb.from('profiles').select('*'),sb.from('submissions').select('*').eq('status','pending')]);
+ app.innerHTML=`<h2 class="text-2xl font-bold mb-4">Admin</h2><p class="m mb-4">${us.length} users</p><h3 class="font-bold mb-3">Campaigns awaiting approval</h3>${rows(cs,c=>`<div class="card mb-3"><b>${esc(c.title)}</b><p class="m text-sm mb-2">${esc(c.instructions)}</p><div class="flex gap-2"><button class="btn" data-c="${c.id}" data-s="approved">Approve</button><button class="btn2" data-c="${c.id}" data-s="rejected">Reject</button></div></div>`,'None.')}<h3 class="font-bold my-3">All pending submissions</h3>${rows(ss,s=>`<div class="card mb-3"><p class="text-sm">${esc(s.answer)}</p><button class="m text-sm underline" data-ev="${esc(s.evidence_path)}">View evidence</button><input placeholder="Reason" data-n="${s.id}"><div class="flex gap-2"><button class="btn" data-a="${s.id}">Approve</button><button class="btn2" data-r="${s.id}">Reject</button></div></div>`,'None.')}`;
+ app.querySelectorAll('[data-c]').forEach(b=>b.onclick=async()=>{await sb.from('campaigns').update({status:b.dataset.s}).eq('id',b.dataset.c);admin()});
+ review(admin)}
+load();
+</script></body></html>
