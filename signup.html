@@ -9,14 +9,17 @@
 <label>Email<input id="email" type="email" autocomplete="email"></label>
 <label>Password (8+ characters)<div class="pw"><input id="pw" type="password" autocomplete="new-password"><button type="button" id="sp1">Show</button></div></label>
 <label>Confirm password<input id="pw2" type="password" autocomplete="new-password"></label>
+<label>Referral code (optional)<input id="refcode" autocomplete="off"></label>
 <label class="chk"><input type="checkbox" id="terms"><span>I agree to the Terms and Privacy Policy.</span></label>
 <div id="err" class="err" role="alert" hidden></div><div id="okm" class="ok-msg" role="status" hidden></div>
 <button id="go" class="btn btn-blue block" style="margin-top:22px">Sign up</button></form>
 <p class="note">Already have an account? <a href="login.html" style="color:#60a5fa">Log in</a></p></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
+const refq=new URLSearchParams(location.search).get('ref');
 let role=new URLSearchParams(location.search).get('role')==='business'?'business':'participant';
 const rb=[...document.querySelectorAll('.role')];
 const paint=()=>rb.forEach(b=>b.setAttribute('aria-pressed',b.dataset.r===role));
+if(refq)refcode.value=refq;
 rb.forEach(b=>b.onclick=()=>{role=b.dataset.r;paint()});paint();
 sp1.onclick=()=>{const s=pw.type==='password';pw.type=s?'text':'password';sp1.textContent=s?'Hide':'Show'};
 f.onsubmit=async e=>{e.preventDefault();showErr(err,'');okm.hidden=true;
@@ -29,7 +32,7 @@ f.onsubmit=async e=>{e.preventDefault();showErr(err,'');okm.hidden=true;
  if(pw.value!==pw2.value)return showErr(err,'The two passwords do not match.');
  if(!terms.checked)return showErr(err,'Please accept the Terms and Privacy Policy to continue.');
  go.disabled=true;go.textContent='Creating account…';
- const {data,error}=await sb.auth.signUp({email:em,password:pw.value,options:{data:{full_name:fullname.value.trim(),role}}});
+ const {data,error}=await sb.auth.signUp({email:em,password:pw.value,options:{data:{full_name:fullname.value.trim(),role,ref:refcode.value.trim()}}});
  go.disabled=false;go.textContent='Sign up';
  if(error){const m=error.message||'';
   return showErr(err,/registered|exists/i.test(m)?'This email already has an account. Please log in.':/rate/i.test(m)?'Too many attempts. Please wait a while and try again.':'Sign up failed: '+m)}
