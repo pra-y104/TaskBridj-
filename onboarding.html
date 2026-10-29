@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><head><title>Welcome · TaskBridj</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="assets/logo.svg"><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><link rel="stylesheet" href="assets/style.css"></head><body>
+<div class="nav"><div class="nav-in"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="">TaskBridj</a><button class="btn btn-out btn-sm" onclick="logout()">Log out</button></div></div>
+<main class="auth"><h1 id="h" style="font-size:28px">Welcome</h1><p id="sub" class="note" style="text-align:left;margin:8px 0"></p>
+<form id="f" novalidate></form></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
+let me;
+const F={
+ participant:{h:'Set up your participant profile',sub:'Only a few details. You can skip optional questions and return later.',fields:[
+  ['full_name','Display name','text',1],['country','Country or region','text',0,'Nigeria'],['language','Preferred language','text',0,'English'],
+  ['device','Device','select',0,['Android','iPhone','Desktop','Other']],['interests','Interests and skills (optional)','text',0]]},
+ business:{h:'Set up your business profile',sub:'Tell us about your organisation. Verification comes later.',fields:[
+  ['org_name','Business or organisation name','text',1],['industry','Industry','text',0],['org_description','Short description','textarea',0],
+  ['website','Website (optional)','text',0],['contact_email','Contact email','email',0]]}};
+(async()=>{try{sb}catch(x){return document.body.innerHTML='<p class="note">App files did not load.</p>'}
+ me=await getProfile();if(!me)return location.href='login.html';if(me.role==='admin')return location.href=HOME.admin;
+ const c=F[me.role];h.textContent=c.h;sub.textContent=c.sub;
+ f.innerHTML=c.fields.map(([k,l,t,req,d])=>{const v=esc(me[k]||(Array.isArray(d)?'':d)||'');
+  const i=t==='select'?'<select id="'+k+'">'+d.map(o=>'<option'+(me[k]===o?' selected':'')+'>'+o+'</option>').join('')+'</select>':t==='textarea'?'<textarea id="'+k+'" rows="3">'+v+'</textarea>':'<input id="'+k+'" type="'+t+'" value="'+v+'">';
+  return '<label>'+l+(req?' *':'')+i+'</label>'}).join('')+'<div id="err" class="err" role="alert" hidden></div><button id="save" class="btn btn-blue block" style="margin-top:22px">Save and continue</button>'+(me.role==='participant'?'<button type="button" id="skip" class="btn btn-out block" style="margin-top:10px">Skip for now</button>':'');
+ const done=async patch=>{const {error}=await sb.from('profiles').update({...patch,onboarded:true}).eq('id',me.id);
+  if(error)return showErr(document.getElementById('err'),'Could not save: '+error.message);location.href=HOME[me.role]};
+ f.onsubmit=e=>{e.preventDefault();const p={};c.fields.forEach(([k,,,req])=>{p[k]=document.getElementById(k).value.trim()});
+  const miss=c.fields.find(([k,,,req])=>req&&!p[k]);if(miss)return showErr(document.getElementById('err'),'Please fill in the required field.');done(p)};
+ const sk=document.getElementById('skip');if(sk)sk.onclick=()=>done({})})();
+</script></body></html>

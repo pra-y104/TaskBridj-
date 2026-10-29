@@ -1,23 +1,40 @@
 <!doctype html><html lang="en"><head><title>Sign up · TaskBridj</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="assets/logo.svg"><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><link rel="stylesheet" href="assets/style.css"></head><body>
 <div class="nav"><div class="nav-in"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="">TaskBridj</a><a href="login.html">Log in</a></div></div>
-<div class="auth"><h1 style="font-size:30px">Create your account</h1>
-<div class="tabs"><button class="tab" data-r="participant">I want to earn</button><button class="tab" data-r="business">I need testers</button></div>
+<main class="auth"><h1 style="font-size:30px">Create your account</h1>
+<div role="group" aria-label="Account type">
+<button type="button" class="role" data-r="participant"><b>I want to participate</b><span>Find testing opportunities, complete tasks, share feedback, and earn rewards for approved work.</span></button>
+<button type="button" class="role" data-r="business"><b>I need testers</b><span>Create research projects, recruit participants, collect feedback, and review submissions.</span></button></div>
+<form id="f" novalidate>
 <label>Full name<input id="name" autocomplete="name"></label>
 <label>Email<input id="email" type="email" autocomplete="email"></label>
-<label>Password (8+ characters)<input id="pw" type="password" autocomplete="new-password"></label>
-<button id="go" class="btn btn-blue block" style="margin-top:22px">Sign up</button>
-<p class="note">Already have an account? <a href="login.html" style="color:#60a5fa">Log in</a></p></div>
+<label>Password (8+ characters)<div class="pw"><input id="pw" type="password" autocomplete="new-password"><button type="button" id="sp1">Show</button></div></label>
+<label>Confirm password<input id="pw2" type="password" autocomplete="new-password"></label>
+<label class="chk"><input type="checkbox" id="terms"><span>I agree to the Terms and Privacy Policy.</span></label>
+<div id="err" class="err" role="alert" hidden></div><div id="okm" class="ok-msg" role="status" hidden></div>
+<button id="go" class="btn btn-blue block" style="margin-top:22px">Sign up</button></form>
+<p class="note">Already have an account? <a href="login.html" style="color:#60a5fa">Log in</a></p></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
 let role=new URLSearchParams(location.search).get('role')==='business'?'business':'participant';
-const tabs=[...document.querySelectorAll('.tab')];
-const paint=()=>tabs.forEach(t=>t.classList.toggle('on',t.dataset.r===role));
-tabs.forEach(t=>t.onclick=()=>{role=t.dataset.r;paint()});paint();
-go.onclick=async()=>{
- if(!name.value.trim()||!email.value||pw.value.length<8)return toast('Enter your name, email and a password of 8+ characters');
- go.disabled=true;
- const {data,error}=await sb.auth.signUp({email:email.value.trim(),password:pw.value,options:{data:{full_name:name.value.trim(),role}}});
- go.disabled=false;
- if(error)return toast(error.message);
- if(data.session){location.href=HOME[role]}else toast('Check your email to confirm your account, then log in.');
+const rb=[...document.querySelectorAll('.role')];
+const paint=()=>rb.forEach(b=>b.setAttribute('aria-pressed',b.dataset.r===role));
+rb.forEach(b=>b.onclick=()=>{role=b.dataset.r;paint()});paint();
+sp1.onclick=()=>{const s=pw.type==='password';pw.type=s?'text':'password';sp1.textContent=s?'Hide':'Show'};
+f.onsubmit=async e=>{e.preventDefault();showErr(err,'');okm.hidden=true;
+ try{sb}catch(x){return showErr(err,'The app files did not load. Make sure the assets folder is on GitHub and reload.')}
+ if(CONFIG.SUPABASE_URL.includes('YOUR-PROJECT'))return showErr(err,'Supabase keys are missing in assets/config.js.');
+ const em=email.value.trim();
+ if(!name.value.trim())return showErr(err,'Enter your full name.');
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))return showErr(err,'Enter a valid email address.');
+ if(pw.value.length<8)return showErr(err,'Password must be at least 8 characters.');
+ if(pw.value!==pw2.value)return showErr(err,'The two passwords do not match.');
+ if(!terms.checked)return showErr(err,'Please accept the Terms and Privacy Policy to continue.');
+ go.disabled=true;go.textContent='Creating account…';
+ const {data,error}=await sb.auth.signUp({email:em,password:pw.value,options:{data:{full_name:name.value.trim(),role}}});
+ go.disabled=false;go.textContent='Sign up';
+ if(error){const m=error.message||'';
+  return showErr(err,/registered|exists/i.test(m)?'This email already has an account. Please log in.':/rate/i.test(m)?'Too many attempts. Please wait a while and try again.':'Sign up failed: '+m)}
+ if(data.user&&data.user.identities&&data.user.identities.length===0)return showErr(err,'This email already has an account. Please log in.');
+ if(data.session){const p=await getProfile();location.href=p?dest(p):'onboarding.html'}
+ else{okm.textContent='Account created. Check your email and tap the confirmation link, then log in.';okm.hidden=false}
 };
 </script></body></html>
