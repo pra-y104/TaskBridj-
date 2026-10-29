@@ -1,7 +1,7 @@
 const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 const HOME = {participant:'participant.html', business:'business.html', admin:'admin.html'};
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const naira = n => '₦' + Number(n||0).toLocaleString('en-NG');
+const naira = n => '\u20A6' + Number(n||0).toLocaleString('en-NG');
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)}
 async function getProfile(){
   const {data:{session}} = await sb.auth.getSession(); if(!session) return null;
@@ -22,4 +22,3 @@ function navbar(p){
 
 function dest(p){ if(p.role==='admin') return HOME.admin; return p.onboarded ? HOME[p.role] : 'onboarding.html'; }
 function showErr(el,msg){el.textContent=msg;el.hidden=!msg}
-  
