@@ -45,3 +45,15 @@ label{display:block;font-size:14px;color:var(--muted);margin-top:14px}
 .hidden{display:none}
 footer{padding:40px 20px;text-align:center;color:#6b7486;font-size:14px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.err{background:#3b1219;border:1px solid #7f1d1d;color:#fecaca;border-radius:12px;padding:12px 14px;margin-top:16px;font-size:15px}
+.ok-msg{background:#052e22;border:1px solid #065f46;color:#a7f3d0;border-radius:12px;padding:12px 14px;margin-top:16px;font-size:15px}
+.role{display:block;text-align:left;width:100%;background:#0B1020;border:1px solid var(--line);border-radius:14px;padding:14px 16px;color:#fff;cursor:pointer;font-family:inherit;margin-top:10px}
+.role b{display:block;font-size:16px}.role span{color:var(--muted);font-size:14px}
+.role[aria-pressed=true]{border-color:var(--blue);background:#0f1b3d}
+.pw{position:relative}.pw button{position:absolute;right:8px;top:14px;background:none;border:0;color:#60a5fa;padding:8px;cursor:pointer;font-family:inherit}
+.chk{display:flex;gap:10px;align-items:flex-start;margin-top:16px;color:var(--muted);font-size:14px}.chk input{width:auto;margin:3px 0 0}
+.menu-btn{display:none;background:none;border:1px solid var(--line);color:#fff;border-radius:10px;padding:8px 12px;font-size:18px}
+.links{display:flex;gap:18px;align-items:center;font-size:15px}.links a:hover{color:#60a5fa}
+@media(max-width:860px){.menu-btn{display:block}.links{display:none;position:absolute;top:100%;left:0;right:0;background:var(--nav);border-bottom:1px solid var(--line);flex-direction:column;align-items:flex-start;padding:16px 20px;gap:16px}.links.open{display:flex}}
+       
