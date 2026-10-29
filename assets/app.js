@@ -10,7 +10,8 @@ async function getProfile(){
 async function guard(role){
   const p = await getProfile();
   if(!p){location.href='login.html';return null}
-  if(p.role!==role){location.href=HOME[p.role];return null}
+  if(p.role!==role){location.href=dest(p);return null}
+  if(p.role!=='admin'&&!p.onboarded){location.href='onboarding.html';return null}
   return p;
 }
 async function logout(){await sb.auth.signOut();location.href='index.html'}
@@ -18,3 +19,7 @@ function navbar(p){
   return `<div class="nav"><div class="nav-in"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="">TaskBridj</a>
   <div class="row" style="gap:14px"><span style="color:var(--muted);font-size:14px">${esc(p.full_name||'')}</span><button class="btn btn-out btn-sm" onclick="logout()">Log out</button></div></div></div>`;
 }
+
+function dest(p){ if(p.role==='admin') return HOME.admin; return p.onboarded ? HOME[p.role] : 'onboarding.html'; }
+function showErr(el,msg){el.textContent=msg;el.hidden=!msg}
+  
