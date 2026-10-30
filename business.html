@@ -31,24 +31,30 @@ async function review(sid,ok,cid){
  let reason=null;if(!ok){reason=prompt('Reason for rejecting (the participant will see this):');if(!reason||!reason.trim())return toast('A reason is required')}
  const {error}=await sb.rpc('review_submission',{p_id:sid,p_approve:ok,p_reason:reason});
  if(error)return toast(error.message);toast(ok?'Approved':'Rejected');subs(cid)}
-function form(){
+async function form(){
+ const [{data:R},{data:S}]=await Promise.all([sb.from('rates').select('*').order('task_type'),sb.rpc('public_settings')]);
+ const extra=Number(S?.recording_extra||0);
  view.innerHTML=`<div class="card" style="max-width:640px"><h3 style="margin-top:0">Create project</h3>
  <label>Project title<input id="ptitle"></label>
- <label>Task type<select id="ptype"><option>App testing</option><option>Website testing</option><option>Usability test</option><option>Bug report</option><option>Survey</option><option>Market research</option></select></label>
- <label>What should testers do?<textarea id="ins" rows="4"></textarea></label>
+ <label>Task type<select id="ptype">${(R||[]).map(r=>'<option>'+esc(r.task_type)+'</option>').join('')}</select></label>
+ <label>How many participants do you need?<input id="cnt" type="number" min="10" value="100"></label>
+ <label class="chk"><input type="checkbox" id="rec"><span>Screen recording required (extra cost per participant)</span></label>
+ <div class="card" style="margin-top:14px;padding:16px;background:#0B1020"><div class="row"><span style="color:var(--muted)">Price per participant</span><b id="ppp"></b></div>
+ <div class="row" style="margin-top:8px"><span style="color:var(--muted)">Total cost</span><b id="ttl" class="stat" style="font-size:24px"></b></div></div>
+ <label>What should participants do?<textarea id="ins" rows="4"></textarea></label>
  <label>Who can take part? (optional)<textarea id="preq" rows="2"></textarea></label>
  <label>Questions (one per line)<textarea id="qs" rows="3"></textarea></label>
  <label>Evidence required<input id="pev" placeholder="e.g. Screenshot of the confirmation page"></label>
- <label>Your budget (₦)<input id="budget" type="number" min="1000" value="10000"></label>
- <p class="note" style="text-align:left;margin:8px 0">TaskBridj splits your budget into many small tests so more real people take part. You see the progress of every test.</p>
  <div id="err" class="err" role="alert" hidden></div>
  <button id="save" class="btn btn-blue block" style="margin-top:16px">Submit for review</button></div>`;
+ const calc=()=>{const r=(R||[]).find(x=>x.task_type===ptype.value);const per=Number(r?.price||0)+(rec.checked?extra:0);ppp.textContent=naira(per);ttl.textContent=naira(per*Math.max(+cnt.value||0,0))};
+ [ptype,cnt,rec].forEach(e=>e.oninput=calc);calc();
  save.onclick=async()=>{showErr(err,'');
   const questions=qs.value.split('\n').map(x=>x.trim()).filter(Boolean);
   if(!ptitle.value.trim()||!ins.value.trim()||!questions.length||!pev.value.trim())return showErr(err,'Fill in the title, instructions, questions and evidence.');
-  if(+budget.value<1000)return showErr(err,'The minimum budget is ₦1,000.');
+  if(!(+cnt.value>=10))return showErr(err,'Choose at least 10 participants.');
   save.disabled=true;
-  const {error}=await sb.rpc('create_campaign',{p_title:ptitle.value.trim(),p_type:ptype.value,p_ins:ins.value.trim(),p_req:preq.value.trim(),p_q:questions,p_ev:pev.value.trim(),p_budget:+budget.value});
+  const {error}=await sb.rpc('create_campaign',{p_title:ptitle.value.trim(),p_type:ptype.value,p_ins:ins.value.trim(),p_req:preq.value.trim(),p_q:questions,p_ev:pev.value.trim(),p_count:+cnt.value,p_rec:rec.checked});
   save.disabled=false;if(error)return showErr(err,error.message);
   toast('Submitted. Your project goes live after funding is confirmed and it is reviewed.');document.querySelector('[data-t=camps]').click()}}
 </script></body></html>
