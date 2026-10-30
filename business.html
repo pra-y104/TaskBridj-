@@ -32,22 +32,20 @@ async function review(sid,ok,cid){
  const {error}=await sb.rpc('review_submission',{p_id:sid,p_approve:ok,p_reason:reason});
  if(error)return toast(error.message);toast(ok?'Approved':'Rejected');subs(cid)}
 async function form(){
- const [{data:R},{data:S}]=await Promise.all([sb.from('rates').select('*').order('task_type'),sb.rpc('public_settings')]);
- const extra=Number(S?.recording_extra||0);
+ const {data:T}=await sb.rpc('task_types');
  view.innerHTML=`<div class="card" style="max-width:640px"><h3 style="margin-top:0">Create project</h3>
  <label>Project title<input id="ptitle"></label>
- <label>Task type<select id="ptype">${(R||[]).map(r=>'<option>'+esc(r.task_type)+'</option>').join('')}</select></label>
+ <label>Task type<select id="ptype">${(T||[]).map(t=>'<option>'+esc(t)+'</option>').join('')}</select></label>
  <label>How many participants do you need?<input id="cnt" type="number" min="10" value="100"></label>
  <label class="chk"><input type="checkbox" id="rec"><span>Screen recording required (extra cost per participant)</span></label>
- <div class="card" style="margin-top:14px;padding:16px;background:#0B1020"><div class="row"><span style="color:var(--muted)">Price per participant</span><b id="ppp"></b></div>
- <div class="row" style="margin-top:8px"><span style="color:var(--muted)">Total cost</span><b id="ttl" class="stat" style="font-size:24px"></b></div></div>
+ <div class="card" style="margin-top:14px;padding:16px;background:#0B1020"><div class="row"><span style="color:var(--muted)">Estimated total cost</span><b id="ttl" class="stat" style="font-size:24px"></b></div><p style="margin:8px 0 0;font-size:13px">Includes the TaskBridj service fee. You confirm this before anything is charged.</p></div>
  <label>What should participants do?<textarea id="ins" rows="4"></textarea></label>
  <label>Who can take part? (optional)<textarea id="preq" rows="2"></textarea></label>
  <label>Questions (one per line)<textarea id="qs" rows="3"></textarea></label>
  <label>Evidence required<input id="pev" placeholder="e.g. Screenshot of the confirmation page"></label>
  <div id="err" class="err" role="alert" hidden></div>
  <button id="save" class="btn btn-blue block" style="margin-top:16px">Submit for review</button></div>`;
- const calc=()=>{const r=(R||[]).find(x=>x.task_type===ptype.value);const per=Number(r?.price||0)+(rec.checked?extra:0);ppp.textContent=naira(per);ttl.textContent=naira(per*Math.max(+cnt.value||0,0))};
+ let qt;const calc=()=>{clearTimeout(qt);qt=setTimeout(async()=>{const {data}=await sb.rpc('quote_campaign',{p_type:ptype.value,p_count:Math.max(+cnt.value||0,0),p_rec:rec.checked});ttl.textContent=naira(data)},250)};
  [ptype,cnt,rec].forEach(e=>e.oninput=calc);calc();
  save.onclick=async()=>{showErr(err,'');
   const questions=qs.value.split('\n').map(x=>x.trim()).filter(Boolean);
