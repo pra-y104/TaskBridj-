@@ -1,59 +1,69 @@
-<!doctype html><html lang="en"><head><title>Participant · TaskBridj</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="assets/logo.svg"><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><link rel="stylesheet" href="assets/style.css"></head><body>
-<div id="nav"></div><div class="wrap" style="padding-top:20px;padding-bottom:60px">
-<div class="grid three"><div class="card"><div style="color:var(--muted)">Available balance</div><div class="stat" id="bal">₦0</div></div>
-<div class="card"><div style="color:var(--muted)">Pending review</div><div class="stat" id="wait" style="color:#fcd34d">₦0</div></div>
-<div class="card"><div style="color:var(--muted)">Total earned</div><div class="stat" id="tot">₦0</div></div></div>
-<div class="tabs"><button class="tab on" data-t="browse">Tasks</button><button class="tab" data-t="mine">My tasks</button><button class="tab" data-t="wallet">Wallet</button><button class="tab" data-t="invite">Invite friends</button></div>
-<div id="list" class="grid" style="margin-top:14px"></div></div>
+<!doctype html><html lang="en"><head><title>Participant · TaskBridj</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="assets/logo.svg"><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><link rel="stylesheet" href="assets/style.css">
+<style>body{padding-bottom:84px}.bar{position:fixed;left:0;right:0;bottom:0;background:var(--nav);border-top:1px solid var(--line);display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom)}
+.bar button{flex:1;background:none;border:0;color:var(--muted);padding:12px 4px;font-family:inherit;font-size:13px;cursor:pointer}.bar button i{display:block;font-size:19px;margin-bottom:4px}.bar button.on{color:#60a5fa}
+.sec{font-size:26px;font-weight:700;margin:6px 0}.box{background:#0B1020;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-top:12px}.box small{color:var(--muted);display:block}.box b{word-break:break-all}
+.wal{background:linear-gradient(135deg,#0f1b3d,#10182c)}</style></head><body>
+<div class="nav"><div class="nav-in"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="">TaskBridj</a><button class="btn btn-out btn-sm" id="menu">☰ Menu</button></div></div>
+<div class="wrap" style="padding-top:18px"><div id="v"></div></div>
+<div class="bar" role="navigation"><button data-v="home" class="on"><i class="fa-solid fa-house"></i>Home</button><button data-v="tasks"><i class="fa-solid fa-table-cells"></i>Tasks</button><button data-v="wallet"><i class="fa-solid fa-naira-sign"></i>Wallet</button><button data-v="profile"><i class="fa-solid fa-user"></i>Profile</button></div>
 <div id="modal" class="modal hidden"><div id="mbody"></div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
-let me,tab='browse',W={earned:0,withdrawn:0,pending:0},S={min_withdrawal:500,max_tasks:5};
+let me,cur='home',sub='open',W={earned:0,withdrawn:0,pending:0},S={min_withdrawal:500,max_tasks:5},C={approved:0,done:0,pending:0};
 const TIER={quick:'Quick check',standard:'Standard test',detailed:'Detailed test'};
-(async()=>{me=await guard('participant');if(!me)return;nav.innerHTML=navbar(me);
-document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{tab=t.dataset.t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));load()});load()})();
 const avail=()=>Number(W.earned)-Number(W.withdrawn);
-async function stats(){const [{data:w},{data:s}]=await Promise.all([sb.rpc('my_wallet'),sb.rpc('public_settings')]);W=w||W;S=s||S;
- bal.textContent=naira(avail());wait.textContent=naira(W.pending);tot.textContent=naira(W.earned)}
-async function load(){await stats();list.innerHTML='<p class="note">Loading…</p>';
- if(tab==='browse'){const {data}=await sb.from('tasks_open').select('*').order('amount',{ascending:false});
-  list.innerHTML=(data||[]).map(c=>`<div class="card"><div class="row"><span class="tag">${esc(c.task_type)}</span><b style="color:var(--green)">${naira(c.amount)}</b></div>
-  <h3 style="font-size:19px">${esc(c.title)}</h3><p style="margin-bottom:8px">${esc(c.instructions).slice(0,140)}</p>
-  <p style="margin-bottom:12px;font-size:14px">${TIER[c.tier]||c.tier} · ${c.open_count} left · Evidence: ${esc(c.evidence_required)}</p>
-  <button class="btn btn-blue btn-sm" onclick="take('${c.campaign_id}','${c.tier}')">Take this task</button></div>`).join('')||'<p class="note">No tasks available right now. Check back soon.</p>';
- }else if(tab==='mine'){const {data}=await sb.from('my_tasks').select('*').order('claimed_at',{ascending:false});
-  list.innerHTML=(data||[]).map(t=>`<div class="card"><div class="row"><b>${esc(t.title)}</b><b style="color:var(--green)">${naira(t.amount)}</b></div>
-  <p style="margin:8px 0 12px;font-size:14px">${TIER[t.tier]||t.tier}${t.reject_reason?' · Reason: '+esc(t.reject_reason):''}</p>
-  ${t.sub_status?`<span class="tag ${t.sub_status==='approved'?'ok':t.sub_status==='rejected'?'bad':'wait'}">${t.sub_status==='pending'?'under review':t.sub_status}</span>`:`<button class="btn btn-blue btn-sm" onclick="work('${t.task_id}')">Submit work</button>`}</div>`).join('')||'<p class="note">You have not taken any task yet.</p>';
- }else if(tab==='wallet'){const {data}=await sb.from('withdrawals').select('*').order('created_at',{ascending:false});
-  const left=Math.max(S.min_withdrawal-avail(),0);
-  list.innerHTML=`<div class="card"><h3 style="margin-top:0">Withdraw</h3><p style="margin-bottom:10px">${left>0?naira(left)+' more to reach the '+naira(S.min_withdrawal)+' minimum.':'You can withdraw now. Minimum '+naira(S.min_withdrawal)+'.'}</p>
+const code=()=>'TB-'+String(me.referral_code||'').toUpperCase();
+(async()=>{me=await guard('participant');if(!me)return;
+ menu.onclick=()=>{if(confirm('Log out of TaskBridj?'))logout()};
+ document.querySelectorAll('.bar button').forEach(b=>b.onclick=()=>go(b.dataset.v));go('home')})();
+function go(x){cur=x;document.querySelectorAll('.bar button').forEach(b=>b.classList.toggle('on',b.dataset.v===x));render()}
+async function refresh(){const [{data:w},{data:s},{data:sb2}]=await Promise.all([sb.rpc('my_wallet'),sb.rpc('public_settings'),sb.from('submissions').select('status')]);
+ W=w||W;S=s||S;C={approved:0,done:0,pending:0};(sb2||[]).forEach(r=>{C.done++;if(r.status==='approved')C.approved++;if(r.status==='pending')C.pending++})}
+async function render(){v.innerHTML='<p class="note">Loading…</p>';await refresh();
+ const first=esc((me.full_name||'').split(' ')[0]);
+ if(cur==='home'){v.innerHTML=`<div class="sec">Welcome, ${first}</div><p style="color:var(--muted);margin:0 0 16px">Find legitimate tasks and complete them carefully.</p>
+  <button class="btn btn-blue block" onclick="go('tasks')">Find tasks</button>
+  <div class="grid two" style="margin-top:18px;grid-template-columns:1fr 1fr">${[['Available balance',naira(avail())],['Approved tasks',C.approved],['Completed tasks',C.done],['Pending reviews',C.pending]].map(([a,b])=>`<div class="card" style="padding:18px"><div style="color:var(--muted);font-size:14px">${a}</div><div class="stat" style="color:#fff;font-size:26px;margin-top:6px">${b}</div></div>`).join('')}</div>
+  <div class="card wal" style="margin-top:16px"><div style="color:var(--muted)">Participant wallet</div><div class="stat" style="color:#fff;font-size:34px">${naira(avail())}</div><p style="margin:8px 0 16px">Approved task rewards appear here after review.</p>
+  <button class="btn btn-sm" style="background:#fff;color:#000" onclick="go('wallet')">Wallet history</button> <button class="btn btn-sm" style="background:#fff;color:#000" onclick="go('wallet')">Withdraw</button></div>
+  <div class="card" style="margin-top:16px"><h3 style="margin-top:0">Invite &amp; Earn</h3><p style="margin-bottom:6px">Share your referral details. Invite rewards are coming soon.</p>
+  <div class="box"><small>Referral code</small><b>${esc(code())}</b></div><div class="box"><small>Referral link</small><b>${esc(link())}</b></div>
+  <div style="margin-top:14px"><button class="btn btn-sm" style="background:#fff;color:#000" id="cc">Copy code</button> <button class="btn btn-sm" style="background:#fff;color:#000" id="cl">Copy link</button></div></div>`;
+  cc.onclick=()=>cp(code());cl.onclick=()=>cp(link())}
+ else if(cur==='tasks'){v.innerHTML=`<div class="tabs"><button class="tab ${sub==='open'?'on':''}" id="t1">Available</button><button class="tab ${sub==='mine'?'on':''}" id="t2">My tasks</button></div><div id="list" class="grid"></div>`;
+  t1.onclick=()=>{sub='open';render()};t2.onclick=()=>{sub='mine';render()};
+  if(sub==='open'){const {data}=await sb.from('tasks_open').select('*').order('amount',{ascending:false});
+   list.innerHTML=(data||[]).map(c=>`<div class="card"><div class="row"><span class="tag">${esc(c.task_type)}</span><b style="color:var(--green)">${naira(c.amount)}</b></div>
+   <h3 style="font-size:19px">${esc(c.title)}</h3><p style="margin-bottom:8px">${esc(c.instructions).slice(0,140)}</p>
+   <p style="margin-bottom:12px;font-size:14px">${TIER[c.tier]||c.tier} · ${c.open_count} left · Evidence: ${esc(c.evidence_required)}</p>
+   <button class="btn btn-blue btn-sm" onclick="take('${c.campaign_id}','${c.tier}')">Take this task</button></div>`).join('')||'<p class="note">No tasks available right now. Check back soon.</p>'}
+  else{const {data}=await sb.from('my_tasks').select('*').order('claimed_at',{ascending:false});
+   list.innerHTML=(data||[]).map(t=>`<div class="card"><div class="row"><b>${esc(t.title)}</b><b style="color:var(--green)">${naira(t.amount)}</b></div>
+   <p style="margin:8px 0 12px;font-size:14px">${TIER[t.tier]||t.tier}${t.reject_reason?' · Reason: '+esc(t.reject_reason):''}</p>
+   ${t.sub_status?`<span class="tag ${t.sub_status==='approved'?'ok':t.sub_status==='rejected'?'bad':'wait'}">${t.sub_status==='pending'?'under review':t.sub_status}</span>`:`<button class="btn btn-blue btn-sm" onclick="work('${t.task_id}')">Submit work</button>`}</div>`).join('')||'<p class="note">You have not taken any task yet.</p>'}}
+ else if(cur==='wallet'){const {data}=await sb.from('withdrawals').select('*').order('created_at',{ascending:false});const left=Math.max(S.min_withdrawal-avail(),0);
+  v.innerHTML=`<div class="card wal"><div style="color:var(--muted)">Available balance</div><div class="stat" style="color:#fff;font-size:34px">${naira(avail())}</div><p style="margin:6px 0 0">Pending review: ${naira(W.pending)} · Total earned: ${naira(W.earned)}</p></div>
+  <div class="card" style="margin-top:14px"><h3 style="margin-top:0">Withdraw</h3><p style="margin-bottom:10px">${left>0?naira(left)+' more to reach the '+naira(S.min_withdrawal)+' minimum.':'You can withdraw now. Minimum '+naira(S.min_withdrawal)+'.'}</p>
   <label>Bank name<input id="bank"></label><label>Account name<input id="accn"></label><label>Account number (10 digits)<input id="accno" inputmode="numeric" maxlength="10"></label>
-  <label>Amount (₦)<input id="amt" type="number"></label><div id="err" class="err" role="alert" hidden></div>
-  <button id="wd" class="btn btn-blue block" style="margin-top:16px">Request withdrawal</button></div>`+
-  (data||[]).map(w=>`<div class="card row"><span>${naira(w.amount)} · ${esc(w.bank_name)}</span><span class="tag ${w.status==='paid'?'ok':w.status==='rejected'?'bad':'wait'}">${w.status}</span></div>`).join('');
-  wd.onclick=async()=>{showErr(err,'');wd.disabled=true;
-   const {error}=await sb.rpc('request_withdrawal',{p_amount:+amt.value,p_bank:bank.value,p_name:accn.value,p_number:accno.value});
-   wd.disabled=false;if(error)return showErr(err,error.message);toast('Withdrawal requested.');load()};
- }else{const link=location.origin+'/signup.html?role=participant&ref='+me.referral_code;
-  list.innerHTML=`<div class="card"><h3 style="margin-top:0">Invite friends</h3><p>Share your code. Friends who join with it are linked to you. Invite rewards are coming soon.</p>
-  <div class="stat" style="letter-spacing:2px">${esc(me.referral_code||'')}</div><p style="word-break:break-all;margin:10px 0">${esc(link)}</p>
-  <button class="btn btn-blue btn-sm" id="cp">Copy invite link</button></div>`;
-  cp.onclick=()=>navigator.clipboard.writeText(link).then(()=>toast('Link copied'),()=>toast('Copy failed'))}}
-async function take(cid,tier){const {error}=await sb.rpc('claim_task',{p_campaign:cid,p_tier:tier});if(error)return toast(error.message);
- toast('Task taken. Open My tasks to submit your work.');load()}
+  <label>Amount (₦)<input id="amt" type="number"></label><div id="err" class="err" role="alert" hidden></div><button id="wd" class="btn btn-blue block" style="margin-top:16px">Request withdrawal</button></div>
+  <h3 style="margin:22px 0 8px">Wallet history</h3>`+((data||[]).map(w=>`<div class="card row" style="margin-top:10px"><span>${naira(w.amount)} · ${esc(w.bank_name)}</span><span class="tag ${w.status==='paid'?'ok':w.status==='rejected'?'bad':'wait'}">${w.status}</span></div>`).join('')||'<p class="note">No withdrawals yet.</p>');
+  wd.onclick=async()=>{showErr(err,'');wd.disabled=true;const {error}=await sb.rpc('request_withdrawal',{p_amount:+amt.value,p_bank:bank.value,p_name:accn.value,p_number:accno.value});
+   wd.disabled=false;if(error)return showErr(err,error.message);toast('Withdrawal requested.');render()}}
+ else{v.innerHTML=`<div class="sec">Profile</div><div class="card"><div class="box" style="margin-top:0"><small>Name</small><b>${esc(me.full_name)}</b></div><div class="box"><small>Country</small><b>${esc(me.country||'Not set')}</b></div><div class="box"><small>Device</small><b>${esc(me.device||'Not set')}</b></div>
+  <button class="btn btn-out block" style="margin-top:16px" onclick="logout()">Log out</button></div>`}}
+function link(){return location.origin+'/signup.html?role=participant&ref='+code()}
+function cp(t){navigator.clipboard.writeText(t).then(()=>toast('Copied'),()=>toast('Copy failed'))}
+async function take(cid,tier){const {error}=await sb.rpc('claim_task',{p_campaign:cid,p_tier:tier});if(error)return toast(error.message);sub='mine';toast('Task taken. Submit your work below.');render()}
 async function work(tid){const {data:t}=await sb.from('my_tasks').select('*').eq('task_id',tid).single();const qs=t.questions||[];
  mbody.innerHTML=`<div class="row"><h3 style="margin:0">${esc(t.title)}</h3><button class="btn btn-out btn-sm" onclick="modal.classList.add('hidden')">Close</button></div>
  <p style="color:var(--muted)">${esc(t.instructions)}</p><p><b>Requirements:</b> ${esc(t.requirements||'None')}</p>
  ${qs.map(q=>`<label>${esc(q)}<textarea rows="2" class="ans"></textarea></label>`).join('')}
- <label>Evidence: ${esc(t.evidence_required)}<input type="file" id="file" accept="image/*,video/*,.pdf"></label>
- <button id="send" class="btn btn-blue block" style="margin-top:20px">Submit work</button>`;
+ <label>Evidence: ${esc(t.evidence_required)}<input type="file" id="file" accept="image/*,video/*,.pdf"></label><button id="send" class="btn btn-blue block" style="margin-top:20px">Submit work</button>`;
  modal.classList.remove('hidden');
- send.onclick=async()=>{const f=file.files[0];if(!f)return toast('Upload your evidence first');
-  if(f.size>20*1024*1024)return toast('File must be under 20 MB');
+ send.onclick=async()=>{const f=file.files[0];if(!f)return toast('Upload your evidence first');if(f.size>20*1024*1024)return toast('File must be under 20 MB');
   const answers=[...document.querySelectorAll('.ans')].map(a=>a.value.trim());if(answers.some(a=>!a))return toast('Answer every question');
   send.disabled=true;const path=me.id+'/'+crypto.randomUUID()+'-'+f.name.replace(/[^\w.\-]/g,'_');
   const up=await sb.storage.from('evidence').upload(path,f);if(up.error){send.disabled=false;return toast(up.error.message)}
   const {error}=await sb.from('submissions').insert({campaign_id:t.campaign_id,task_id:tid,participant_id:me.id,answers,evidence_path:path});
-  if(error){send.disabled=false;return toast(error.message)}
-  modal.classList.add('hidden');toast('Submitted. Awaiting review.');load()}}
+  if(error){send.disabled=false;return toast(error.message)}modal.classList.add('hidden');toast('Submitted. Awaiting review.');render()}}
 </script></body></html>
+                                                                                                                   
