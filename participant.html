@@ -14,7 +14,7 @@ const TIER={quick:'Quick check',standard:'Standard test',detailed:'Detailed test
 const avail=()=>Number(W.earned)-Number(W.withdrawn);
 const code=()=>'TB-'+String(me.referral_code||'').toUpperCase();
 (async()=>{me=await guard('participant');if(!me)return;
- menu.onclick=()=>mp.classList.toggle('hidden');mp.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{mp.classList.add('hidden');go(b.dataset.v)});
+ menu.onclick=e=>{e.stopPropagation();mp.classList.toggle('hidden')};document.addEventListener('click',e=>{if(!mp.contains(e.target))mp.classList.add('hidden')});mp.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{mp.classList.add('hidden');go(b.dataset.v)});
  document.querySelectorAll('.bar button').forEach(b=>b.onclick=()=>go(b.dataset.v));go('home')})();
 function go(x){cur=x;document.querySelectorAll('.bar button').forEach(b=>b.classList.toggle('on',b.dataset.v===x));render()}
 async function refresh(){const [{data:w},{data:s},{data:sb2}]=await Promise.all([sb.rpc('my_wallet'),sb.rpc('public_settings'),sb.from('submissions').select('status')]);
