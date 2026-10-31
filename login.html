@@ -5,21 +5,24 @@
 <label>Email<input id="email" type="email" autocomplete="email"></label>
 <label>Password<div class="pw"><input id="pw" type="password" autocomplete="current-password"><button type="button" id="sp">Show</button></div></label>
 <div id="err" class="err" role="alert" hidden></div><div id="okm" class="ok-msg" role="status" hidden></div>
+<button type="button" id="resend" class="btn btn-out btn-sm" style="margin-top:12px" hidden>Resend confirmation email</button>
 <button id="go" class="btn btn-blue block" style="margin-top:22px">Log in</button></form>
 <p class="note"><a href="#" id="forgot" style="color:#60a5fa">Forgot password?</a> · <a href="signup.html" style="color:#60a5fa">Create account</a></p></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
+if(new URLSearchParams(location.search).get('verify'))showErr(err,'Please confirm your email first, then log in.');
 sp.onclick=()=>{const s=pw.type==='password';pw.type=s?'text':'password';sp.textContent=s?'Hide':'Show'};
 const ready=()=>{try{sb}catch(x){showErr(err,'The app files did not load. Make sure the assets folder is on GitHub and reload.');return false}return true};
 f.onsubmit=async e=>{e.preventDefault();showErr(err,'');okm.hidden=true;if(!ready())return;
  if(!email.value.trim()||!pw.value)return showErr(err,'Enter your email and password.');
  go.disabled=true;go.textContent='Logging in…';
  const {error}=await sb.auth.signInWithPassword({email:email.value.trim(),password:pw.value});
- if(error){go.disabled=false;go.textContent='Log in';const m=error.message||'';
+ if(error){go.disabled=false;go.textContent='Log in';const m=error.message||'';resend.hidden=!/confirm/i.test(m);
   return showErr(err,/confirm/i.test(m)?'Please confirm your email first. Check your inbox.':/invalid/i.test(m)?'Email or password is incorrect.':'Could not log in: '+m)}
  const p=await getProfile();
  if(!p){go.disabled=false;go.textContent='Log in';return showErr(err,'Your account has no profile yet. Contact support.')}
  location.href=dest(p)};
+resend.onclick=async()=>{const {error}=await sb.auth.resend({type:'signup',email:email.value.trim()});if(error)showErr(err,error.message);else{showErr(err,'');okm.textContent='Confirmation email sent. Check your inbox.';okm.hidden=false}};
 forgot.onclick=async e=>{e.preventDefault();showErr(err,'');if(!ready())return;if(!email.value.trim())return showErr(err,'Enter your email first.');
- const {error}=await sb.auth.resetPasswordForEmail(email.value.trim(),{redirectTo:location.origin+'/login.html'});
+ const {error}=await sb.auth.resetPasswordForEmail(email.value.trim(),{redirectTo:location.origin+'/reset.html'});
  if(error)showErr(err,error.message);else{okm.textContent='Password reset link sent. Check your email.';okm.hidden=false}};
 </script></body></html>
