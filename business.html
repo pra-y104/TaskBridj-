@@ -12,7 +12,7 @@ let me,C=[],P={},PEND=[],PN=0;
  menu.onclick=e=>{e.stopPropagation();mp.classList.toggle('hidden')};
  document.addEventListener('click',e=>{if(!mp.contains(e.target))mp.classList.add('hidden')});
  document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{mp.classList.add('hidden');go(b.dataset.v)});go('home')})();
-function go(x,open){document.querySelectorAll('.bar button').forEach(b=>b.classList.toggle('on',b.dataset.v===x));render(x,open)}
+function go(x,open){document.querySelectorAll('.bar button').forEach(b=>b.classList.toggle('on',b.dataset.v===(x==='project'?'projects':x)));render(x,open)}
 async function load(){sb.rpc('auto_approve_overdue').then(()=>{},()=>{});const [{data:c},{data:pr},pend]=await Promise.all([sb.from('campaigns').select('*').order('created_at',{ascending:false}),sb.rpc('my_campaign_progress'),sb.from('submissions').select('id,campaign_id',{count:'exact'}).eq('status','pending').limit(50)]);
  C=c||[];P=Object.fromEntries((pr||[]).map(p=>[p.campaign_id,p]));PEND=pend.data||[];PN=pend.count||0}
 const tg=s=>s==='active'?'ok':s==='rejected'?'bad':'wait';
@@ -20,7 +20,7 @@ function card(c){const p=P[c.id]||{total:0,claimed:0,approved:0};const pc=p.tota
  return `<div class="card" style="margin-top:12px"><div class="row"><span class="tag">${esc(c.task_type)}</span><span class="tag ${tg(c.status)}">${c.status.replace('_',' ')}</span></div>
  <h3 style="font-size:19px">${esc(c.title)}</h3><p style="margin-bottom:10px">${c.funded?'Funded':'Awaiting funding confirmation'}${c.deadline?' · Ends '+new Date(c.deadline).toLocaleDateString('en-NG'):''}${c.reject_reason?' · Reason: '+esc(c.reject_reason):''}</p>
  <div class="bar2"><div style="width:${pc}%"></div></div><p style="margin:8px 0 14px;font-size:14px">${p.claimed} of ${p.total} tests taken · ${p.approved} approved</p>
- <button class="btn btn-out btn-sm" onclick="subs('${c.id}')">Review submissions</button> <button class="btn btn-out btn-sm" onclick="dl('${c.id}')">Download results</button><div id="s-${c.id}" style="margin-top:12px"></div></div>`}
+ <button class="btn btn-blue btn-sm" onclick="go('project','${c.id}')">Open project</button> <button class="btn btn-out btn-sm" onclick="subs('${c.id}')">Review submissions</button> <button class="btn btn-out btn-sm" onclick="dl('${c.id}')">Download results</button><div id="s-${c.id}" style="margin-top:12px"></div></div>`}
 async function render(x,open){v.innerHTML='<p class="note">Loading…</p>';await load();
  if(x==='home'){const first=esc(me.org_name||(me.full_name||'').split(' ')[0]);
   const rem=C.filter(c=>c.funded).reduce((a,c)=>a+Number(c.budget)*(1-Number((P[c.id]||{}).paid_share||0)),0);const stats=[['Active projects',C.filter(c=>c.status==='active').length],['Total project budget',naira(C.filter(c=>c.status!=='rejected').reduce((a,c)=>a+Number(c.budget),0))],['Participants requested',C.reduce((a,c)=>a+Number(c.participants||0),0)],['Completed (approved)',Object.values(P).reduce((a,p)=>a+Number(p.approved),0)],['Awaiting approval',PN],['Remaining budget',naira(Math.round(rem))]];
@@ -31,6 +31,7 @@ async function render(x,open){v.innerHTML='<p class="note">Loading…</p>';await
   <h3 style="margin:22px 0 4px">Needs your attention</h3>${Object.keys(by).map(id=>{const c=C.find(x=>x.id===id);return c?`<div class="card row" style="margin-top:10px"><span>${esc(c.title)} · ${by[id]} waiting</span><button class="btn btn-blue btn-sm" onclick="go('projects','${id}')">Review</button></div>`:''}).join('')||'<p class="note" style="text-align:left">Nothing is waiting for you.</p>'}
   <h3 style="margin:22px 0 4px">Recent projects</h3>${C.slice(0,3).map(card).join('')||'<p class="note" style="text-align:left">No projects yet. Create your first project.</p>'}`}
  else if(x==='projects'){const {data:dr}=await sb.from('project_drafts').select('id,title,updated_at').order('updated_at',{ascending:false});v.innerHTML='<div class="sec">Projects</div>'+((dr||[]).length?'<h3 style="margin:10px 0 4px">Drafts</h3>'+dr.map(d=>`<div class="card row" style="margin-top:10px"><span>${esc(d.title||'Untitled draft')}<br><small style="color:var(--muted)">${new Date(d.updated_at).toLocaleDateString('en-NG')}</small></span><span><button class="btn btn-blue btn-sm" onclick="resume('${d.id}')">Continue</button> <button class="btn btn-out btn-sm" onclick="delDraft('${d.id}')">Delete</button></span></div>`).join('')+'<h3 style="margin:22px 0 4px">Projects</h3>':'')+(C.map(card).join('')||'<p class="note">No projects yet.</p>');if(open)subs(open)}
+ else if(x==='project')await projectPage(open);
  else if(x==='create')form();
  else if(x==='billing'){const {data:RF}=await sb.from('refund_requests').select('*');const RM=Object.fromEntries((RF||[]).map(r=>[r.campaign_id,r]));const f=C.filter(c=>c.funded),tot=f.reduce((a,c)=>a+Number(c.budget),0),due=C.filter(c=>!c.funded&&c.status!=='rejected').reduce((a,c)=>a+Number(c.budget),0);
   v.innerHTML=`<div class="sec">Billing</div><div class="grid" style="grid-template-columns:1fr 1fr"><div class="card" style="padding:18px"><div style="color:var(--muted);font-size:14px">Funded</div><div class="stat" style="font-size:24px">${naira(tot)}</div></div><div class="card" style="padding:18px"><div style="color:var(--muted);font-size:14px">Awaiting payment</div><div class="stat" style="color:#fcd34d;font-size:24px">${naira(due)}</div></div></div>
@@ -130,4 +131,37 @@ async function dl(id){const {data}=await sb.from('submissions').select('*').eq('
  const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
  const rows=[['Submitted','Status','Answers','Proof code','Reason'],...data.map(s=>[s.created_at,s.status,(s.answers||[]).join(' | '),s.proof_code||'',s.reject_reason||''])];
  const blob=new Blob(['\ufeff'+rows.map(r=>r.map(q).join(',')).join('\n')],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='results.csv';a.click()}
+
+async function projectPage(id){const c=C.find(z=>z.id===id);if(!c){v.innerHTML='<p class="note">Project not found.</p>';return}
+ const [{data:ss},{data:ms},{data:rf}]=await Promise.all([sb.from('submissions').select('status').eq('campaign_id',id),sb.from('project_messages').select('*').eq('campaign_id',id).order('created_at',{ascending:false}).limit(10),sb.from('refund_requests').select('status').eq('campaign_id',id)]);
+ const n=s=>(ss||[]).filter(r=>r.status===s).length;const p=P[id]||{total:0,claimed:0};const ended=c.deadline&&new Date(c.deadline)<new Date();
+ const st=c.status==='rejected'?['Rejected','bad']:c.status!=='active'?['Awaiting review','wait']:c.paused?['Paused','wait']:ended?['Ended','']:['Live','ok'];
+ const pc=p.total?Math.round(p.claimed/p.total*100):0;
+ const box=(a,b)=>`<div class="card" style="padding:16px"><div style="color:var(--muted);font-size:13px">${a}</div><div class="stat" style="color:#fff;font-size:20px;margin-top:4px">${b}</div></div>`;
+ v.innerHTML=`<button class="btn btn-out btn-sm" onclick="go('projects')">← Projects</button>
+ <div class="row" style="margin:14px 0 4px"><div class="sec" style="margin:0">${esc(c.title)}</div><span class="tag ${st[1]}">${st[0]}</span></div>
+ <p style="color:var(--muted);margin:0 0 12px">${esc(c.task_type)}${c.deadline?' · Ends '+new Date(c.deadline).toLocaleDateString('en-NG'):''}</p>
+ <div class="bar2"><div style="width:${pc}%"></div></div><p style="margin:8px 0 14px;font-size:14px">${p.claimed} of ${p.total} tests taken</p>
+ <div class="grid" style="grid-template-columns:1fr 1fr">${box('Participants requested',c.participants||'n/a')}${box('Budget',naira(c.budget))}${box('Awaiting review',n('pending'))}${box('Approved',n('approved'))}${box('Rejected',n('rejected'))}${box('Funding',c.funded?'Funded':'Not yet')}</div>
+ <div style="margin:16px 0;display:flex;gap:8px;flex-wrap:wrap">
+ ${c.status==='active'?`<button class="btn btn-out btn-sm" onclick="pauseP('${id}',${!c.paused})">${c.paused?'Resume recruitment':'Pause recruitment'}</button>`:''}
+ ${['pending_review','active'].includes(c.status)?`<button class="btn btn-out btn-sm" onclick="editP('${id}')">Edit details</button>`:''}
+ <button class="btn btn-out btn-sm" onclick="dl('${id}')">Download results</button>
+ ${c.funded&&ended&&!(rf||[]).length?`<button class="btn btn-out btn-sm" onclick="refund('${id}')">Request refund</button>`:''}</div>
+ <h3 style="margin:18px 0 6px">Message participants</h3><p style="margin:0 0 8px;font-size:14px;color:var(--muted)">Everyone who has taken a task in this project sees your message.</p>
+ <textarea id="mtxt" rows="3" maxlength="1000"></textarea><button class="btn btn-blue btn-sm" style="margin-top:10px" onclick="sendMsg('${id}')">Send message</button>
+ ${(ms||[]).map(m=>`<div class="box"><small>${new Date(m.created_at).toLocaleString('en-NG')}</small><b style="font-weight:500">${esc(m.body)}</b></div>`).join('')}
+ <h3 style="margin:22px 0 6px">Submissions</h3><div id="s-${id}"></div>`;
+ subs(id)}
+async function pauseP(id,on){const {error}=await sb.rpc('set_paused',{p_cid:id,p_paused:on});toast(error?error.message:(on?'Recruitment paused':'Recruitment resumed'));go('project',id)}
+async function sendMsg(id){const t=document.getElementById('mtxt').value.trim();if(t.length<2)return toast('Write a message first');
+ const {error}=await sb.rpc('post_message',{p_cid:id,p_body:t});toast(error?error.message:'Message sent');if(!error)go('project',id)}
+function editP(id){const c=C.find(z=>z.id===id);const m=document.createElement('div');m.className='modal';
+ m.innerHTML=`<div><h3 style="margin-top:0">Edit details</h3><p style="font-size:14px;color:var(--muted);margin:0 0 4px">Price, participants and questions cannot change after you submit.</p>
+ <label>Title<input id="et" value="${esc(c.title)}"></label><label>Description<textarea id="ed" rows="3">${esc(c.description||'')}</textarea></label>
+ <label>Requirements<textarea id="er" rows="2">${esc(c.requirements||'')}</textarea></label><label>Reference link<input id="el" value="${esc(c.reference_link||'')}"></label>
+ <div id="err2" class="err" role="alert" hidden></div><button class="btn btn-blue block" id="es" style="margin-top:16px">Save</button><button class="btn btn-out block" id="ec" style="margin-top:10px">Cancel</button></div>`;
+ document.body.appendChild(m);m.querySelector('#ec').onclick=()=>m.remove();
+ m.querySelector('#es').onclick=async()=>{const {error}=await sb.rpc('update_project',{p_cid:id,p_title:m.querySelector('#et').value,p_desc:m.querySelector('#ed').value,p_req:m.querySelector('#er').value,p_link:m.querySelector('#el').value});
+  if(error){const e=m.querySelector('#err2');e.textContent=error.message;e.hidden=false;return}m.remove();toast('Saved');go('project',id)}}
 </script></body></html>
