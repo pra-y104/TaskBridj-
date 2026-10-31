@@ -17,7 +17,7 @@ const code=()=>'TB-'+String(me.referral_code||'').toUpperCase();
  menu.onclick=e=>{e.stopPropagation();mp.classList.toggle('hidden')};document.addEventListener('click',e=>{if(!mp.contains(e.target))mp.classList.add('hidden')});mp.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{mp.classList.add('hidden');go(b.dataset.v)});
  document.querySelectorAll('.bar button').forEach(b=>b.onclick=()=>go(b.dataset.v));go('home')})();
 function go(x){cur=x;document.querySelectorAll('.bar button').forEach(b=>b.classList.toggle('on',b.dataset.v===x));render()}
-async function refresh(){const [{data:w},{data:s},{data:sb2}]=await Promise.all([sb.rpc('my_wallet'),sb.rpc('public_settings'),sb.from('submissions').select('status')]);
+async function refresh(){sb.rpc('auto_approve_overdue').then(()=>{},()=>{});const [{data:w},{data:s},{data:sb2}]=await Promise.all([sb.rpc('my_wallet'),sb.rpc('public_settings'),sb.from('submissions').select('status')]);
  W=w||W;S=s||S;C={approved:0,done:0,pending:0};(sb2||[]).forEach(r=>{C.done++;if(r.status==='approved')C.approved++;if(r.status==='pending')C.pending++})}
 async function render(){v.innerHTML='<p class="note">Loading…</p>';await refresh();
  const first=esc((me.full_name||'').split(' ')[0]);
@@ -40,7 +40,9 @@ async function render(){v.innerHTML='<p class="note">Loading…</p>';await refre
   else{const {data}=await sb.from('my_tasks').select('*').order('claimed_at',{ascending:false});
    list.innerHTML=(data||[]).map(t=>`<div class="card"><div class="row"><b>${esc(t.title)}</b><b style="color:var(--green)">${naira(t.amount)}</b></div>
    <p style="margin:8px 0 12px;font-size:14px">${TIER[t.tier]||t.tier}${t.reject_reason?' · Reason: '+esc(t.reject_reason):''}</p>
-   ${t.sub_status?`<span class="tag ${t.sub_status==='approved'?'ok':t.sub_status==='rejected'?'bad':'wait'}">${t.sub_status==='pending'?'under review':t.sub_status}</span>`:`<button class="btn btn-blue btn-sm" onclick="work('${t.task_id}')">Submit work</button>`}</div>`).join('')||'<p class="note">You have not taken any task yet.</p>'}}
+   ${!t.sub_status?`<div class="box" style="margin:0 0 12px"><small>Your proof code (show it in your evidence)</small><b>${esc(t.proof_code)}</b></div>`:''}
+   ${t.sub_status==='rejected'?(t.appealed?'<span class="tag wait">Appeal sent</span>':`<button class="btn btn-out btn-sm" onclick="appeal('${t.submission_id}')">Appeal</button>`):''}
+   ${t.sub_status?`<span class="tag ${t.sub_status==='approved'?'ok':t.sub_status==='rejected'?'bad':'wait'}">${t.sub_status==='pending'?'under review':t.sub_status}</span>`:`${new Date(t.expires_at)<new Date()?'<span class="tag bad">Time is up · released</span>':`<button class="btn btn-blue btn-sm" onclick="work('${t.task_id}')">Submit work</button> <span style="font-size:13px;color:var(--muted)">Submit before ${new Date(t.expires_at).toLocaleString('en-NG')}</span>`}`}</div>`).join('')||'<p class="note">You have not taken any task yet.</p>'}}
  else if(cur==='wallet'){const {data}=await sb.from('withdrawals').select('*').order('created_at',{ascending:false});const left=Math.max(S.min_withdrawal-avail(),0);
   v.innerHTML=`<div class="card wal"><div style="color:var(--muted)">Available balance</div><div class="stat" style="color:#fff;font-size:34px">${naira(avail())}</div><p style="margin:6px 0 0">Pending review: ${naira(W.pending)} · Total earned: ${naira(W.earned)}</p></div>
   <div class="card" style="margin-top:14px"><h3 style="margin-top:0">Withdraw</h3><p style="margin-bottom:10px">${left>0?naira(left)+' more to reach the '+naira(S.min_withdrawal)+' minimum.':'You can withdraw now. Minimum '+naira(S.min_withdrawal)+'.'}</p>
@@ -51,6 +53,8 @@ async function render(){v.innerHTML='<p class="note">Loading…</p>';await refre
    wd.disabled=false;if(error)return showErr(err,error.message);toast('Withdrawal requested.');render()}}
  else{v.innerHTML=`<div class="sec">Profile</div><div class="card"><div class="box" style="margin-top:0"><small>Name</small><b>${esc(me.full_name)}</b></div><div class="box"><small>Country</small><b>${esc(me.country||'Not set')}</b></div><div class="box"><small>Device</small><b>${esc(me.device||'Not set')}</b></div>
   <button class="btn btn-out block" style="margin-top:16px" onclick="logout()">Log out</button></div>`}}
+async function appeal(sid){const m=prompt('Explain why this rejection is wrong (at least 10 characters):');if(!m||m.trim().length<10)return toast('Please write a short explanation');
+ const {error}=await sb.rpc('appeal_submission',{p_sid:sid,p_msg:m.trim()});toast(error?error.message:'Appeal sent. TaskBridj will review it.');render()}
 function link(){return location.origin+'/signup.html?role=participant&ref='+code()}
 function cp(t){navigator.clipboard.writeText(t).then(()=>toast('Copied'),()=>toast('Copy failed'))}
 async function take(cid,tier){const {error}=await sb.rpc('claim_task',{p_campaign:cid,p_tier:tier});if(error)return toast(error.message);sub='mine';toast('Task taken. Submit your work below.');render()}
@@ -58,12 +62,13 @@ async function work(tid){const {data:t}=await sb.from('my_tasks').select('*').eq
  mbody.innerHTML=`<div class="row"><h3 style="margin:0">${esc(t.title)}</h3><button class="btn btn-out btn-sm" onclick="modal.classList.add('hidden')">Close</button></div>
  <p style="color:var(--muted)">${esc(t.instructions)}</p><p><b>Requirements:</b> ${esc(t.requirements||'None')}</p>
  ${qs.map(q=>`<label>${esc(q)}<textarea rows="2" class="ans"></textarea></label>`).join('')}
- <label>Evidence: ${esc(t.evidence_required)}<input type="file" id="file" accept="image/*,video/*,.pdf"></label><button id="send" class="btn btn-blue block" style="margin-top:20px">Submit work</button>`;
+ <label>Proof code (it is ${esc(t.proof_code)}). It must appear in your evidence<input id="pcode" autocomplete="off"></label><label>Evidence: ${esc(t.evidence_required)}<input type="file" id="file" accept="image/*,video/*,audio/*,.pdf"></label><button id="send" class="btn btn-blue block" style="margin-top:20px">Submit work</button>`;
  modal.classList.remove('hidden');
  send.onclick=async()=>{const f=file.files[0];if(!f)return toast('Upload your evidence first');if(f.size>20*1024*1024)return toast('File must be under 20 MB');
   const answers=[...document.querySelectorAll('.ans')].map(a=>a.value.trim());if(answers.some(a=>!a))return toast('Answer every question');
-  send.disabled=true;const path=me.id+'/'+crypto.randomUUID()+'-'+f.name.replace(/[^\w.\-]/g,'_');
+  if(pcode.value.trim().toUpperCase()!==String(t.proof_code).toUpperCase())return toast('Enter your proof code exactly as shown');
+  send.disabled=true;const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await f.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join('');const path=me.id+'/'+crypto.randomUUID()+'-'+f.name.replace(/[^\w.\-]/g,'_');
   const up=await sb.storage.from('evidence').upload(path,f);if(up.error){send.disabled=false;return toast(up.error.message)}
-  const {error}=await sb.from('submissions').insert({campaign_id:t.campaign_id,task_id:tid,participant_id:me.id,answers,evidence_path:path});
-  if(error){send.disabled=false;return toast(error.message)}modal.classList.add('hidden');toast('Submitted. Awaiting review.');render()}}
+  const {error}=await sb.from('submissions').insert({campaign_id:t.campaign_id,task_id:tid,participant_id:me.id,answers,evidence_path:path,proof_code:pcode.value.trim().toUpperCase(),file_hash:hash});
+  if(error){send.disabled=false;return toast(/file_hash|duplicate/i.test(error.message)?'This file was already submitted. Upload your own new evidence.':error.message)}modal.classList.add('hidden');toast('Submitted. Awaiting review.');render()}}
 </script></body></html>
