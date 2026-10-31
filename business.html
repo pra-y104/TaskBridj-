@@ -13,17 +13,17 @@ let me,C=[],P={},PEND=[],PN=0;
  document.addEventListener('click',e=>{if(!mp.contains(e.target))mp.classList.add('hidden')});
  document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{mp.classList.add('hidden');go(b.dataset.v)});go('home')})();
 function go(x,open){document.querySelectorAll('.bar button').forEach(b=>b.classList.toggle('on',b.dataset.v===x));render(x,open)}
-async function load(){const [{data:c},{data:pr},pend]=await Promise.all([sb.from('campaigns').select('*').order('created_at',{ascending:false}),sb.rpc('my_campaign_progress'),sb.from('submissions').select('id,campaign_id',{count:'exact'}).eq('status','pending').limit(50)]);
+async function load(){sb.rpc('auto_approve_overdue').then(()=>{},()=>{});const [{data:c},{data:pr},pend]=await Promise.all([sb.from('campaigns').select('*').order('created_at',{ascending:false}),sb.rpc('my_campaign_progress'),sb.from('submissions').select('id,campaign_id',{count:'exact'}).eq('status','pending').limit(50)]);
  C=c||[];P=Object.fromEntries((pr||[]).map(p=>[p.campaign_id,p]));PEND=pend.data||[];PN=pend.count||0}
 const tg=s=>s==='active'?'ok':s==='rejected'?'bad':'wait';
 function card(c){const p=P[c.id]||{total:0,claimed:0,approved:0};const pc=p.total?Math.round(p.claimed/p.total*100):0;
  return `<div class="card" style="margin-top:12px"><div class="row"><span class="tag">${esc(c.task_type)}</span><span class="tag ${tg(c.status)}">${c.status.replace('_',' ')}</span></div>
- <h3 style="font-size:19px">${esc(c.title)}</h3><p style="margin-bottom:10px">${c.funded?'Funded':'Awaiting funding confirmation'}${c.reject_reason?' · Reason: '+esc(c.reject_reason):''}</p>
+ <h3 style="font-size:19px">${esc(c.title)}</h3><p style="margin-bottom:10px">${c.funded?'Funded':'Awaiting funding confirmation'}${c.deadline?' · Ends '+new Date(c.deadline).toLocaleDateString('en-NG'):''}${c.reject_reason?' · Reason: '+esc(c.reject_reason):''}</p>
  <div class="bar2"><div style="width:${pc}%"></div></div><p style="margin:8px 0 14px;font-size:14px">${p.claimed} of ${p.total} tests taken · ${p.approved} approved</p>
- <button class="btn btn-out btn-sm" onclick="subs('${c.id}')">Review submissions</button><div id="s-${c.id}" style="margin-top:12px"></div></div>`}
+ <button class="btn btn-out btn-sm" onclick="subs('${c.id}')">Review submissions</button> <button class="btn btn-out btn-sm" onclick="dl('${c.id}')">Download results</button><div id="s-${c.id}" style="margin-top:12px"></div></div>`}
 async function render(x,open){v.innerHTML='<p class="note">Loading…</p>';await load();
  if(x==='home'){const first=esc(me.org_name||(me.full_name||'').split(' ')[0]);
-  const stats=[['Active projects',C.filter(c=>c.status==='active').length],['Tests completed',Object.values(P).reduce((a,p)=>a+Number(p.approved),0)],['Waiting for review',PN],['Total funded',naira(C.filter(c=>c.funded).reduce((a,c)=>a+Number(c.budget),0))]];
+  const rem=C.filter(c=>c.funded).reduce((a,c)=>a+Number(c.budget)*(1-Number((P[c.id]||{}).paid_share||0)),0);const stats=[['Active projects',C.filter(c=>c.status==='active').length],['Total project budget',naira(C.filter(c=>c.status!=='rejected').reduce((a,c)=>a+Number(c.budget),0))],['Participants requested',C.reduce((a,c)=>a+Number(c.participants||0),0)],['Completed (approved)',Object.values(P).reduce((a,p)=>a+Number(p.approved),0)],['Awaiting approval',PN],['Remaining budget',naira(Math.round(rem))]];
   const by={};PEND.forEach(s=>by[s.campaign_id]=(by[s.campaign_id]||0)+1);
   v.innerHTML=`<div class="sec">Welcome, ${first}</div><p style="color:var(--muted);margin:0 0 16px">Get honest feedback from real Nigerian participants.</p>
   <button class="btn btn-blue block" onclick="go('create')">Create project</button>
@@ -32,16 +32,16 @@ async function render(x,open){v.innerHTML='<p class="note">Loading…</p>';await
   <h3 style="margin:22px 0 4px">Recent projects</h3>${C.slice(0,3).map(card).join('')||'<p class="note" style="text-align:left">No projects yet. Create your first project.</p>'}`}
  else if(x==='projects'){v.innerHTML='<div class="sec">Projects</div>'+(C.map(card).join('')||'<p class="note">No projects yet.</p>');if(open)subs(open)}
  else if(x==='create')form();
- else if(x==='billing'){const f=C.filter(c=>c.funded),tot=f.reduce((a,c)=>a+Number(c.budget),0),due=C.filter(c=>!c.funded&&c.status!=='rejected').reduce((a,c)=>a+Number(c.budget),0);
+ else if(x==='billing'){const {data:RF}=await sb.from('refund_requests').select('*');const RM=Object.fromEntries((RF||[]).map(r=>[r.campaign_id,r]));const f=C.filter(c=>c.funded),tot=f.reduce((a,c)=>a+Number(c.budget),0),due=C.filter(c=>!c.funded&&c.status!=='rejected').reduce((a,c)=>a+Number(c.budget),0);
   v.innerHTML=`<div class="sec">Billing</div><div class="grid" style="grid-template-columns:1fr 1fr"><div class="card" style="padding:18px"><div style="color:var(--muted);font-size:14px">Funded</div><div class="stat" style="font-size:24px">${naira(tot)}</div></div><div class="card" style="padding:18px"><div style="color:var(--muted);font-size:14px">Awaiting payment</div><div class="stat" style="color:#fcd34d;font-size:24px">${naira(due)}</div></div></div>
-  <p class="note" style="text-align:left">Funding is confirmed by TaskBridj before a project goes live. Payment details will appear here when online payments are set up.</p>`+C.map(c=>`<div class="card row" style="margin-top:10px"><span>${esc(c.title)}</span><span><b>${naira(c.budget)}</b> <span class="tag ${c.funded?'ok':'wait'}">${c.funded?'funded':'unpaid'}</span></span></div>`).join('')}
+  <p class="note" style="text-align:left">Funding is confirmed by TaskBridj before a project goes live. Payment details will appear here when online payments are set up.</p>`+C.map(c=>`<div class="card row" style="margin-top:10px"><span>${esc(c.title)}</span><span><b>${naira(c.budget)}</b> <span class="tag ${c.funded?'ok':'wait'}">${c.funded?'funded':'unpaid'}</span> ${RM[c.id]?`<span class="tag wait">refund ${RM[c.id].status}</span>`:(c.funded&&c.deadline&&new Date(c.deadline)<new Date()?`<button class="btn btn-out btn-sm" onclick="refund('${c.id}')">Request refund</button>`:'')}</span></div>`).join('')}
  else{v.innerHTML=`<div class="sec">Profile</div><div class="card"><div class="box" style="margin-top:0"><small>Name</small><b>${esc(me.full_name)}</b></div><div class="box"><small>Business</small><b>${esc(me.org_name||'Not set')}</b></div><div class="box"><small>Industry</small><b>${esc(me.industry||'Not set')}</b></div><div class="box"><small>Contact email</small><b>${esc(me.contact_email||'Not set')}</b></div><button class="btn btn-out block" style="margin-top:16px" onclick="logout()">Log out</button></div>`}}
 async function subs(id){const box=document.getElementById('s-'+id);if(!box)return;box.innerHTML='Loading…';
  const {data}=await sb.from('submissions').select('*').eq('campaign_id',id).order('created_at');
  if(!data?.length){box.innerHTML='<p style="color:var(--muted)">No submissions yet.</p>';return}
  let h='';for(const s of data){let link='';const {data:u}=await sb.storage.from('evidence').createSignedUrl(s.evidence_path,600);if(u)link=`<a href="${u.signedUrl}" target="_blank" rel="noopener" style="color:#60a5fa">View evidence</a>`;
   h+=`<div style="border-top:1px solid var(--line);padding:12px 0"><div class="row"><span class="tag ${s.status==='approved'?'ok':s.status==='rejected'?'bad':'wait'}">${s.status}</span>${link}</div>
-  <div style="margin:8px 0;color:#c8cfdb;font-size:14px">${(s.answers||[]).map(a=>'• '+esc(a)).join('<br>')}</div>
+  <div style="font-size:13px;color:var(--muted)">Proof code: ${esc(s.proof_code||'n/a')}. Check it appears in the evidence${s.auto_approved?' · auto-approved':''}</div><div style="margin:8px 0;color:#c8cfdb;font-size:14px">${(s.answers||[]).map(a=>'• '+esc(a)).join('<br>')}</div>
   ${s.status==='pending'?`<button class="btn btn-green btn-sm" onclick="review('${s.id}',true,'${id}')">Approve</button> <button class="btn btn-red btn-sm" onclick="review('${s.id}',false,'${id}')">Reject</button>`:s.reject_reason?'Reason: '+esc(s.reject_reason):''}</div>`}
  box.innerHTML=h}
 async function review(sid,ok,cid){let reason=null;if(!ok){reason=prompt('Reason for rejecting (the participant will see this):');if(!reason||!reason.trim())return toast('A reason is required')}
@@ -50,6 +50,7 @@ async function form(){const {data:T}=await sb.rpc('task_types');
  v.innerHTML=`<div class="sec">Create project</div><div class="card"><label>Project title<input id="ptitle"></label>
  <label>Task type<select id="ptype">${(T||[]).map(t=>'<option>'+esc(t)+'</option>').join('')}</select></label>
  <label>How many participants do you need?<input id="cnt" type="number" min="10" value="50"></label>
+ <label>Project deadline<select id="pdays"><option value="7">7 days</option><option value="14" selected>14 days</option><option value="30">30 days</option></select></label>
  <label class="chk"><input type="checkbox" id="rec"><span>Screen recording required (extra cost per participant)</span></label>
  <div class="box"><p id="sum" style="margin:0 0 8px;color:#C8CFDB;font-size:14px"></p><p id="dsc" style="margin:0 0 8px;color:#6ee7b7;font-size:14px" hidden></p>
  <div class="row"><span style="color:var(--muted)">Estimated total cost</span><b id="ttl" class="stat" style="font-size:24px"></b></div><p style="margin:8px 0 0;font-size:13px;color:var(--muted)">Includes the TaskBridj service fee. You confirm this before anything is charged.</p></div>
@@ -59,14 +60,29 @@ async function form(){const {data:T}=await sb.rpc('task_types');
  <div id="err" class="err" role="alert" hidden></div><button id="save" class="btn btn-blue block" style="margin-top:16px">Submit for review</button></div></div>`;
  let qt;const calc=()=>{const n=Math.max(+cnt.value||0,0);sum.textContent=ptype.value+' × '+n+' participants'+(rec.checked?' · with screen recording':'');
   const big=n>10000;big_.hidden=!big;fields.hidden=big;clearTimeout(qt);if(big){ttl.textContent='Custom quote';dsc.hidden=true;return}
-  qt=setTimeout(async()=>{const {data}=await sb.rpc('quote_campaign',{p_type:ptype.value,p_count:n,p_rec:rec.checked});if(!data)return;ttl.textContent=naira(data.total);
+  qt=setTimeout(async()=>{const {data}=await sb.rpc('quote_campaign',{p_type:ptype.value,p_count:n,p_rec:rec.checked,p_days:+pdays.value});if(!data)return;ttl.textContent=naira(data.total);
    dsc.hidden=!(data.discount>0);dsc.textContent='Volume discount applied: '+Math.round(data.discount*100)+'% off'},250)};
  window.big_=document.getElementById('big');[ptype,cnt,rec].forEach(e=>e.oninput=calc);calc();
  qb.onclick=async()=>{const {error}=await sb.rpc('request_quote',{p_type:ptype.value,p_count:+cnt.value,p_note:ptitle.value});toast(error?error.message:'Quote request sent. We will contact you.')};
- save.onclick=async()=>{showErr(err,'');const questions=qs.value.split('\n').map(x=>x.trim()).filter(Boolean);
+ const doCreate=async()=>{showErr(err,'');const questions=qs.value.split('\n').map(x=>x.trim()).filter(Boolean);
   if(!ptitle.value.trim()||!ins.value.trim()||!questions.length||!pev.value.trim())return showErr(err,'Fill in the title, instructions, questions and evidence.');
   if(!(+cnt.value>=10))return showErr(err,'Choose at least 10 participants.');save.disabled=true;
   const {error}=await sb.rpc('create_campaign',{p_title:ptitle.value.trim(),p_type:ptype.value,p_ins:ins.value.trim(),p_req:preq.value.trim(),p_q:questions,p_ev:pev.value.trim(),p_count:+cnt.value,p_rec:rec.checked});
-  save.disabled=false;if(error)return showErr(err,error.message);toast('Submitted. Your project goes live after funding is confirmed and it is reviewed.');go('projects')}}
+  save.disabled=false;if(error)return showErr(err,error.message);toast('Submitted. Your project goes live after funding is confirmed and it is reviewed.');go('projects')};
+ save.onclick=()=>{showErr(err,'');if(!ptitle.value.trim()||!ins.value.trim()||!qs.value.trim()||!pev.value.trim())return showErr(err,'Fill in the title, instructions, questions and evidence.');if(!(+cnt.value>=10))return showErr(err,'Choose at least 10 participants.');confirmBox(doCreate)}}
+function confirmBox(next){const m=document.createElement('div');m.className='modal';
+ m.innerHTML=`<div><h3 style="margin-top:0">Confirm your project</h3><div class="box" style="margin-top:0"><small>${esc(sum.textContent)}</small><b>${esc(ttl.textContent)}</b></div>
+ <p style="margin:12px 0;font-size:14px;color:#C8CFDB">Participants are paid only for approved work. If some tasks are not completed by your deadline, you can request a refund of the unused amount minus a handling fee, which is shown before you confirm. Your project goes live after TaskBridj confirms funding.</p>
+ <button class="btn btn-blue block" id="okc">Confirm and submit</button><button class="btn btn-out block" id="noc" style="margin-top:10px">Go back</button></div>`;
+ document.body.appendChild(m);m.querySelector('#noc').onclick=()=>m.remove();m.querySelector('#okc').onclick=()=>{m.remove();next()}}
+async function refund(id){const {data,error}=await sb.rpc('refund_calc',{p_cid:id});if(error)return toast(error.message);if(!data.eligible)return toast(data.reason||'No refund available');
+ const m=document.createElement('div');m.className='modal';
+ m.innerHTML=`<div><h3 style="margin-top:0">Request refund</h3><div class="box" style="margin-top:0"><small>Unused amount</small><b>${naira(data.gross)}</b></div><div class="box"><small>Handling fee</small><b>−${naira(data.fee)}</b></div><div class="box"><small>You receive</small><b>${naira(data.net)}</b></div>
+ <button class="btn btn-blue block" id="okc" style="margin-top:16px">Request refund</button><button class="btn btn-out block" id="noc" style="margin-top:10px">Cancel</button></div>`;
+ document.body.appendChild(m);m.querySelector('#noc').onclick=()=>m.remove();
+ m.querySelector('#okc').onclick=async()=>{const {error:e}=await sb.rpc('request_refund',{p_cid:id});m.remove();toast(e?e.message:'Refund requested. TaskBridj will process it.');go('billing')}}
+async function dl(id){const {data}=await sb.from('submissions').select('*').eq('campaign_id',id).order('created_at');if(!data?.length)return toast('No results yet');
+ const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';
+ const rows=[['Submitted','Status','Answers','Proof code','Reason'],...data.map(s=>[s.created_at,s.status,(s.answers||[]).join(' | '),s.proof_code||'',s.reject_reason||''])];
+ const blob=new Blob(['\ufeff'+rows.map(r=>r.map(q).join(',')).join('\n')],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='results.csv';a.click()}
 </script></body></html>
-                                                                                                                                             
