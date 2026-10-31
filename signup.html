@@ -32,7 +32,7 @@ f.onsubmit=async e=>{e.preventDefault();showErr(err,'');okm.hidden=true;
  if(pw.value!==pw2.value)return showErr(err,'The two passwords do not match.');
  if(!terms.checked)return showErr(err,'Please accept the Terms and Privacy Policy to continue.');
  go.disabled=true;go.textContent='Creating account…';
- const {data,error}=await sb.auth.signUp({email:em,password:pw.value,options:{data:{full_name:fullname.value.trim(),role,ref:refcode.value.trim()}}});
+ const {data,error}=await sb.auth.signUp({email:em,password:pw.value,options:{emailRedirectTo:location.origin+'/login.html',data:{full_name:fullname.value.trim(),role,ref:refcode.value.trim()}}});
  go.disabled=false;go.textContent='Sign up';
  if(error){const m=error.message||'';
   return showErr(err,/registered|exists/i.test(m)?'This email already has an account. Please log in.':/rate/i.test(m)?'Too many attempts. Please wait a while and try again.':'Sign up failed: '+m)}
