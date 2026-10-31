@@ -52,9 +52,10 @@ const CTRY=['Nigeria','Ghana','Kenya','South Africa','United Kingdom','United St
 const QT={text:'Short answer',long:'Long answer',yesno:'Yes / No',rating:'Rating 1 to 5',choice:'Multiple choice'};
 const NUMK=['count','mins','start','days'];
 const opt=(list,cur)=>list.map(o=>Array.isArray(o)?`<option value="${o[0]}" ${String(cur)===String(o[0])?'selected':''}>${o[1]}</option>`:`<option ${cur===o?'selected':''}>${esc(o)}</option>`).join('');
-async function form(){if(!D){D=DEF();DID=null;STEP=1}if(!TT.length){const {data}=await sb.rpc('task_types');TT=data||[]}if(!D.type)D.type=TT[0]||'';wiz()}
+async function form(){if(!D){D=DEF();DID=null;STEP=1}if(!TT.length){const {data}=await sb.rpc('task_catalog');TT=data||[]}if(!D.type)D.type=TT[0]?.task_type||'';wiz()}
+const cat=()=>TT.find(x=>x.task_type===D.type)||{};const isQ=()=>!!cat().quote_only;
 function wiz(){const N=7;const T=['Project','Participants','Instructions','Evidence','Schedule','Price','Preview'];let h='';
- if(STEP===1)h=`<label>Project title<input data-k="title" value="${esc(D.title)}"></label><label>Task type<select data-k="type">${opt(TT,D.type)}</select></label><label>Project description<textarea data-k="desc" rows="4">${esc(D.desc)}</textarea></label>`;
+ if(STEP===1)h=`<label>Project title<input data-k="title" value="${esc(D.title)}"></label><label>Task type<select data-k="type">${[...new Set(TT.map(x=>x.grp))].map(g=>`<optgroup label="${esc(g)}">${TT.filter(x=>x.grp===g).map(x=>`<option ${D.type===x.task_type?'selected':''}>${esc(x.task_type)}</option>`).join('')}</optgroup>`).join('')}</select></label>${cat().description?`<p class="note" style="text-align:left;margin:8px 0">${esc(cat().description)}</p>`:''}<label>Project description<textarea data-k="desc" rows="4">${esc(D.desc)}</textarea></label>`;
  if(STEP===2)h=`<label>How many participants do you need?<input data-k="count" type="number" min="10" value="${D.count}"></label>
   <p style="margin:14px 0 4px;color:var(--muted);font-size:14px">Countries (leave all unticked for anywhere)</p>${CTRY.map(c=>`<label class="chk" style="margin-top:8px"><input type="checkbox" data-c="${c}" ${D.countries.includes(c)?'checked':''}><span>${c}</span></label>`).join('')}
   <label>Device needed<select data-k="device">${opt(['Any','Android','iPhone','Desktop'],D.device)}</select></label>
@@ -65,32 +66,33 @@ function wiz(){const N=7;const T=['Project','Participants','Instructions','Evide
   ${D.qs.map((x,i)=>`<div class="box"><label style="margin-top:0">Question ${i+1}<input data-qi="${i}" data-qf="q" value="${esc(x.q)}"></label><label>Answer type<select data-qi="${i}" data-qf="t">${opt(Object.entries(QT),x.t)}</select></label>
   ${x.t==='choice'?`<label>Options (separate with commas)<input data-qi="${i}" data-qf="o" value="${esc(x.o)}"></label>`:''}${D.qs.length>1?`<button type="button" class="btn btn-out btn-sm" style="margin-top:10px" onclick="rmQ(${i})">Remove</button>`:''}</div>`).join('')}
   ${D.qs.length<20?'<button type="button" class="btn btn-out btn-sm" style="margin-top:12px" onclick="addQ()">Add question</button>':''}`;
- if(STEP===4)h=`<label>Evidence required<input data-k="ev" placeholder="e.g. Screenshot of the confirmation page" value="${esc(D.ev)}"></label>
+ if(STEP===4)h=`<label>Evidence required<input data-k="ev" placeholder="${esc(cat().evidence_hint||'e.g. Screenshot of the confirmation page')}" value="${esc(D.ev)}"></label>
   <label class="chk"><input type="checkbox" data-k="rec" ${D.rec?'checked':''}><span>Screen recording required (extra cost per participant, shown in the Price step)</span></label>
   <p class="note" style="text-align:left">Every participant also gets a personal proof code that must appear in their evidence.</p>`;
  if(STEP===5)h=`<label>Project starts<select data-k="start">${opt([[0,'Immediately after approval'],[1,'In 1 day'],[3,'In 3 days'],[7,'In 7 days']],D.start)}</select></label>
   <label>Project deadline<select data-k="days">${opt([[7,'7 days'],[14,'14 days'],[30,'30 days']],D.days)}</select></label>
   <p class="note" style="text-align:left">Recruitment closes at the deadline. Unused funds can then be refunded, minus a handling fee.</p>`;
  const cost=`<div class="box"><p id="sum" style="margin:0 0 8px;color:#C8CFDB;font-size:14px"></p><p id="dsc" style="margin:0 0 8px;color:#6ee7b7;font-size:14px" hidden></p><div class="row"><span style="color:var(--muted)">Estimated total cost</span><b id="ttl" class="stat" style="font-size:24px"></b></div><p style="margin:8px 0 0;font-size:13px;color:var(--muted)">Includes the TaskBridj service fee. You confirm this before anything is charged.</p></div>`;
- if(STEP===6)h=cost;
+ if(STEP===6)h=isQ()?`<div class="box"><b>Custom quote</b><p style="margin:8px 0 0;font-size:14px;color:var(--muted)">${esc(D.type)} is priced individually. Send a quote request and TaskBridj will contact you with a price. Your draft is saved.</p></div>`:cost;
  if(STEP===7)h=`<p style="color:var(--muted);margin:0 0 10px;font-size:14px">This is how participants will see your project.</p><div class="card" style="padding:18px"><div class="row"><span class="tag">${esc(D.type)}</span><b style="color:var(--green)">Reward shown to participants</b></div>
   <h3 style="font-size:19px">${esc(D.title)}</h3><p style="margin-bottom:8px">${esc(D.desc||D.ins)}</p><p style="font-size:14px;margin-bottom:8px">About ${D.mins} min · ${D.countries.length?esc(D.countries.join(', ')):'Any country'} · ${esc(D.device)} · ${D.exp==='Any'?'Anyone':'Experienced'}</p>
   <p style="font-size:14px;margin-bottom:8px"><b>Instructions:</b> ${esc(D.ins)}</p>${D.req?`<p style="font-size:14px;margin-bottom:8px"><b>Requirements:</b> ${esc(D.req)}</p>`:''}${D.link?`<p style="font-size:14px;margin-bottom:8px"><b>Link:</b> ${esc(D.link)}</p>`:''}
   <p style="font-size:14px;margin-bottom:8px"><b>Evidence:</b> ${esc(D.ev)}${D.rec?' + screen recording':''}</p><p style="font-size:14px"><b>Questions:</b></p>${D.qs.filter(x=>x.q.trim()).map(x=>`<p style="font-size:14px;margin:4px 0">• ${esc(x.q)} <span style="color:var(--muted)">(${QT[x.t]})</span></p>`).join('')}</div>${cost}`;
  v.innerHTML=`<div class="sec">Create project</div><p style="color:var(--muted);margin:0 0 12px">Step ${STEP} of ${N}: ${T[STEP-1]}</p><div class="bar2" style="margin-bottom:16px"><div style="width:${STEP/N*100}%"></div></div>
   <div class="card">${h}<div id="err" class="err" role="alert" hidden></div>
-  <div class="row" style="margin-top:20px;flex-wrap:nowrap">${STEP>1?'<button id="bk" class="btn btn-out">Back</button>':'<span></span>'}${STEP<N?'<button id="nx" class="btn btn-blue">Next</button>':'<button id="pub" class="btn btn-blue">Confirm and submit</button>'}</div>
+  <div class="row" style="margin-top:20px;flex-wrap:nowrap">${STEP>1?'<button id="bk" class="btn btn-out">Back</button>':'<span></span>'}${STEP<N?(STEP===6&&isQ()?'<button id="rq" class="btn btn-blue">Request custom quote</button>':'<button id="nx" class="btn btn-blue">Next</button>'):'<button id="pub" class="btn btn-blue">Confirm and submit</button>'}</div>
   <div class="row" style="margin-top:14px"><button id="sd" class="btn btn-out btn-sm">Save draft</button><button id="so" class="btn btn-out btn-sm">Start over</button></div></div>`;
  v.oninput=v.onchange=e=>{const t=e.target;
-  if(t.dataset.k){D[t.dataset.k]=t.type==='checkbox'?t.checked:NUMK.includes(t.dataset.k)?+t.value:t.value}
+  if(t.dataset.k){D[t.dataset.k]=t.type==='checkbox'?t.checked:NUMK.includes(t.dataset.k)?+t.value:t.value;if(t.dataset.k==='type'&&e.type==='change'){if(cat().default_minutes)D.mins=cat().default_minutes;wiz()}}
   else if(t.dataset.c){D.countries=t.checked?[...new Set([...D.countries,t.dataset.c])]:D.countries.filter(x=>x!==t.dataset.c)}
   else if(t.dataset.qi!==undefined){D.qs[+t.dataset.qi][t.dataset.qf]=t.value;if(t.dataset.qf==='t'&&e.type==='change')wiz()}};
  const bk=document.getElementById('bk'),nx=document.getElementById('nx'),pub=document.getElementById('pub');
  if(bk)bk.onclick=async()=>{await saveDraft(true);STEP--;wiz()};
  if(nx)nx.onclick=async()=>{const m=check(STEP);if(m)return showErr(err,m);await saveDraft(true);STEP++;wiz()};
  if(pub)pub.onclick=()=>{const m=check(3)||check(2)||check(4)||check(1);if(m)return showErr(err,m);confirmBox(publish)};
+ const rq=document.getElementById('rq');if(rq)rq.onclick=async()=>{await saveDraft(true);const {error}=await sb.rpc('request_quote',{p_type:D.type,p_count:+D.count,p_note:(D.title+' - '+(D.desc||D.ins||'')).slice(0,500)});toast(error?error.message:'Quote request sent. TaskBridj will contact you.')};
  sd.onclick=()=>saveDraft(false);so.onclick=()=>{if(confirm('Discard this project form and start again?')){D=null;DID=null;form()}};
- if(STEP>=6)quote()}
+ if(STEP>=6&&!isQ())quote()}
 function check(s){if(s===1){if(D.title.trim().length<3)return 'Enter a project title.';if(!D.type)return 'Choose a task type.'}
  if(s===2){if(!(D.count>=10&&D.count<=10000))return 'Choose between 10 and 10,000 participants.'}
  if(s===3){if(!D.ins.trim())return 'Tell participants what to do.';const q=D.qs.filter(x=>x.q.trim());if(!q.length)return 'Add at least one question.';
@@ -98,7 +100,7 @@ function check(s){if(s===1){if(D.title.trim().length<3)return 'Enter a project t
   if(D.link.trim()&&!/^https?:\/\/\S+$/.test(D.link.trim()))return 'Enter a link starting with http.';if(!(D.mins>=1&&D.mins<=240))return 'Completion time must be 1 to 240 minutes.'}
  if(s===4){if(!D.ev.trim())return 'Say what evidence participants must upload.'}return ''}
 async function quote(){const n=Math.max(+D.count||0,0);sum.textContent=D.type+' × '+n+' participants'+(D.rec?' · with screen recording':'');
- const {data}=await sb.rpc('quote_campaign',{p_type:D.type,p_count:n,p_rec:!!D.rec});if(!data||!document.getElementById('ttl'))return;ttl.textContent=naira(data.total);
+ const {data}=await sb.rpc('quote_campaign',{p_type:D.type,p_count:n,p_rec:!!D.rec});if(!data||!document.getElementById('ttl'))return;if(data.custom)return;ttl.textContent=naira(data.total);
  dsc.hidden=!(data.discount>0);dsc.textContent='Volume discount applied: '+Math.round(data.discount*100)+'% off'}
 function addQ(){D.qs.push({q:'',t:'text',o:''});wiz()}
 function rmQ(i){D.qs.splice(i,1);wiz()}
