@@ -9,7 +9,7 @@
 <div class="bar" role="navigation"><button data-v="home" class="on"><i class="fa-solid fa-house"></i>Home</button><button data-v="tasks"><i class="fa-solid fa-table-cells"></i>Tasks</button><button data-v="wallet"><i class="fa-solid fa-naira-sign"></i>Wallet</button><button data-v="profile"><i class="fa-solid fa-user"></i>Profile</button></div>
 <div id="modal" class="modal hidden"><div id="mbody"></div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
-let F={type:'',min:0,sort:'amount'};let me,cur='home',sub='open',W={earned:0,withdrawn:0,pending:0},S={min_withdrawal:500,max_tasks:5},C={approved:0,done:0,pending:0};
+let F={type:'',min:0,mins:0,sort:'amount'};let me,cur='home',sub='open',W={earned:0,withdrawn:0,pending:0},S={min_withdrawal:500,max_tasks:5},C={approved:0,done:0,pending:0};
 const TIER={quick:'Quick check',standard:'Standard test',detailed:'Detailed test'};
 const avail=()=>Number(W.earned)-Number(W.withdrawn);
 const code=()=>'TB-'+String(me.referral_code||'').toUpperCase();
@@ -35,12 +35,12 @@ async function render(){v.innerHTML='<p class="note">Loading…</p>';await refre
  else if(cur==='tasks'){v.innerHTML=`<div class="tabs"><button class="tab ${sub==='open'?'on':''}" id="t1">Available</button><button class="tab ${sub==='mine'?'on':''}" id="t2">My tasks</button></div><div id="flt"></div><div id="list" class="grid"></div>`;
   t1.onclick=()=>{sub='open';render()};t2.onclick=()=>{sub='mine';render()};
   if(sub==='open'){const {data:all}=await sb.from('tasks_open').select('task_type');const types=[...new Set((all||[]).map(x=>x.task_type))].sort();
-   flt.innerHTML=`<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:12px"><select id="ftype"><option value="">All types</option>${types.map(t=>`<option ${F.type===t?'selected':''}>${esc(t)}</option>`).join('')}</select><select id="fsort"><option value="amount" ${F.sort==='amount'?'selected':''}>Highest reward</option><option value="created_at" ${F.sort==='created_at'?'selected':''}>Newest</option></select></div><select id="fmin" style="margin-bottom:12px">${[[0,'Any reward'],[300,'₦300 and above'],[1000,'₦1,000 and above']].map(([v2,l])=>`<option value="${v2}" ${F.min===v2?'selected':''}>${l}</option>`).join('')}</select>`;
-   ftype.onchange=()=>{F.type=ftype.value;render()};fsort.onchange=()=>{F.sort=fsort.value;render()};fmin.onchange=()=>{F.min=+fmin.value;render()};
-   let q=sb.from('tasks_open').select('*').order(F.sort,{ascending:false});if(F.type)q=q.eq('task_type',F.type);if(F.min)q=q.gte('amount',F.min);const {data}=await q;
+   flt.innerHTML=`<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:12px"><select id="ftype"><option value="">All types</option>${types.map(t=>`<option ${F.type===t?'selected':''}>${esc(t)}</option>`).join('')}</select><select id="fsort"><option value="amount" ${F.sort==='amount'?'selected':''}>Highest reward</option><option value="created_at" ${F.sort==='created_at'?'selected':''}>Newest</option></select></div><select id="fmin" style="margin-bottom:12px">${[[0,'Any reward'],[300,'₦300 and above'],[1000,'₦1,000 and above']].map(([v2,l])=>`<option value="${v2}" ${F.min===v2?'selected':''}>${l}</option>`).join('')}</select><select id="fmins" style="margin-bottom:12px"><option value="0">Any time</option><option value="5" ${F.mins===5?'selected':''}>Up to 5 min</option><option value="15" ${F.mins===15?'selected':''}>Up to 15 min</option><option value="30" ${F.mins===30?'selected':''}>Up to 30 min</option></select>`;
+   fmins.onchange=()=>{F.mins=+fmins.value;render()};ftype.onchange=()=>{F.type=ftype.value;render()};fsort.onchange=()=>{F.sort=fsort.value;render()};fmin.onchange=()=>{F.min=+fmin.value;render()};
+   let q=sb.from('tasks_open').select('*').order(F.sort,{ascending:false});if(F.type)q=q.eq('task_type',F.type);if(F.min)q=q.gte('amount',F.min);if(F.mins)q=q.or('est_minutes.is.null,est_minutes.lte.'+F.mins);const {data}=await q;
    list.innerHTML=(data||[]).map(c=>`<div class="card"><div class="row"><span class="tag">${esc(c.task_type)}</span><b style="color:var(--green)">${naira(c.amount)}</b></div>
-   <h3 style="font-size:19px">${esc(c.title)}</h3><p style="margin-bottom:8px">${esc(c.instructions).slice(0,140)}</p>
-   <p style="margin-bottom:12px;font-size:14px">${TIER[c.tier]||c.tier} · ${c.open_count} left · Evidence: ${esc(c.evidence_required)}</p>
+   <h3 style="font-size:19px">${esc(c.title)}</h3><p style="margin-bottom:8px">${esc(c.description||c.instructions).slice(0,140)}</p>
+   <p style="margin-bottom:8px;font-size:14px">${TIER[c.tier]||c.tier} · ${c.open_count} left${c.est_minutes?' · about '+c.est_minutes+' min':''}${c.deadline?' · Ends '+new Date(c.deadline).toLocaleDateString('en-NG'):''}</p><p style="margin-bottom:12px;font-size:14px">Evidence: ${esc(c.evidence_required)}${c.requirements?'<br>Requirements: '+esc(c.requirements):''}</p>
    <button class="btn btn-blue btn-sm" onclick="take('${c.campaign_id}','${c.tier}')">Take this task</button></div>`).join('')||'<p class="note">No tasks available right now. Check back soon.</p>'}
   else{const {data}=await sb.from('my_tasks').select('*').order('claimed_at',{ascending:false});
    list.innerHTML=(data||[]).map(t=>`<div class="card"><div class="row"><b>${esc(t.title)}</b><b style="color:var(--green)">${naira(t.amount)}</b></div>
@@ -60,7 +60,7 @@ async function render(){v.innerHTML='<p class="note">Loading…</p>';await refre
  else{const dn=C.approved+C.rejected;const rate=dn?Math.round(C.approved/dn*100)+'%':'No reviews yet';
   v.innerHTML=`<div class="sec">Profile</div><div class="card"><div class="box" style="margin-top:0"><small>Approval rate</small><b>${rate}</b></div><div class="box"><small>Approved tasks</small><b>${C.approved}</b></div>
   <label>Full name<input id="pfn" value="${esc(me.full_name||'')}"></label><label>Phone (optional)<input id="pfp" inputmode="tel" value="${esc(me.phone||'')}"></label>
-  <label>Country<input id="pfc" value="${esc(me.country||'')}"></label><label>Language<input id="pfl" value="${esc(me.language||'')}"></label>
+  <label>Country<select id="pfc">${['','Nigeria','Ghana','Kenya','South Africa','United Kingdom','United States','Other'].map(o=>`<option ${me.country===o?'selected':''}>${o}</option>`).join('')}</select></label><label>Language<input id="pfl" value="${esc(me.language||'')}"></label>
   <label>Device<select id="pfd">${['','Android','iPhone','Desktop','Other'].map(o=>`<option ${me.device===o?'selected':''}>${o}</option>`).join('')}</select></label>
   <label>Interests and skills<input id="pfi" value="${esc(me.interests||'')}"></label><div id="err" class="err" role="alert" hidden></div>
   <button id="ps" class="btn btn-blue block" style="margin-top:16px">Save profile</button><button class="btn btn-out block" style="margin-top:10px" onclick="logout()">Log out</button></div>`;
@@ -69,17 +69,24 @@ async function render(){v.innerHTML='<p class="note">Loading…</p>';await refre
    const {error}=await sb.from('profiles').update(patch).eq('id',me.id);if(error)return showErr(err,error.message);me={...me,...patch};toast('Profile saved')}}}
 async function appeal(sid){const m=prompt('Explain why this rejection is wrong (at least 10 characters):');if(!m||m.trim().length<10)return toast('Please write a short explanation');
  const {error}=await sb.rpc('appeal_submission',{p_sid:sid,p_msg:m.trim()});toast(error?error.message:'Appeal sent. TaskBridj will review it.');render()}
+const qt=x=>typeof x==='string'?x:x.q;
+function qField(x){if(typeof x==='string')return `<label>${esc(x)}<textarea rows="2" class="ans"></textarea></label>`;
+ const l=esc(x.q);if(x.t==='long')return `<label>${l}<textarea rows="3" class="ans"></textarea></label>`;
+ if(x.t==='yesno')return `<label>${l}<select class="ans"><option value=""></option><option>Yes</option><option>No</option></select></label>`;
+ if(x.t==='rating')return `<label>${l}<select class="ans"><option value=""></option>${[1,2,3,4,5].map(n=>`<option>${n}</option>`).join('')}</select></label>`;
+ if(x.t==='choice')return `<label>${l}<select class="ans"><option value=""></option>${(x.o||[]).map(o=>`<option>${esc(o)}</option>`).join('')}</select></label>`;
+ return `<label>${l}<input class="ans"></label>`}
 function link(){return location.origin+'/signup.html?role=participant&ref='+code()}
 function cp(t){navigator.clipboard.writeText(t).then(()=>toast('Copied'),()=>toast('Copy failed'))}
 async function take(cid,tier){const {error}=await sb.rpc('claim_task',{p_campaign:cid,p_tier:tier});if(error)return toast(error.message);sub='mine';toast('Task taken. Submit your work below.');render()}
 async function work(tid){const {data:t}=await sb.from('my_tasks').select('*').eq('task_id',tid).single();const qs=t.questions||[];
  mbody.innerHTML=`<div class="row"><h3 style="margin:0">${esc(t.title)}</h3><button class="btn btn-out btn-sm" onclick="modal.classList.add('hidden')">Close</button></div>
  <p style="color:var(--muted)">${esc(t.instructions)}</p><p><b>Requirements:</b> ${esc(t.requirements||'None')}</p>
- ${qs.map(q=>`<label>${esc(q)}<textarea rows="2" class="ans"></textarea></label>`).join('')}
+ ${qs.map(qField).join('')}
  <label>Proof code (it is ${esc(t.proof_code)}). It must appear in your evidence<input id="pcode" autocomplete="off"></label><label>Evidence: ${esc(t.evidence_required)}<input type="file" id="file" accept="image/*,video/*,audio/*,.pdf"></label><button id="send" class="btn btn-blue block" style="margin-top:20px">Submit work</button>`;
  modal.classList.remove('hidden');
  send.onclick=async()=>{const f=file.files[0];if(!f)return toast('Upload your evidence first');if(f.size>20*1024*1024)return toast('File must be under 20 MB');
-  const answers=[...document.querySelectorAll('.ans')].map(a=>a.value.trim());if(answers.some(a=>!a))return toast('Answer every question');
+  const raw=[...document.querySelectorAll('.ans')].map(a=>a.value.trim());if(raw.some(a=>!a))return toast('Answer every question');const answers=raw.map((a,i)=>qt(qs[i])+' — '+a);
   if(pcode.value.trim().toUpperCase()!==String(t.proof_code).toUpperCase())return toast('Enter your proof code exactly as shown');
   send.disabled=true;const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await f.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join('');const path=me.id+'/'+crypto.randomUUID()+'-'+f.name.replace(/[^\w.\-]/g,'_');
   const up=await sb.storage.from('evidence').upload(path,f);if(up.error){send.disabled=false;return toast(up.error.message)}

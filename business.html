@@ -30,7 +30,7 @@ async function render(x,open){v.innerHTML='<p class="note">Loading…</p>';await
   <div class="grid" style="margin-top:18px;grid-template-columns:1fr 1fr">${stats.map(([a,b])=>`<div class="card" style="padding:18px"><div style="color:var(--muted);font-size:14px">${a}</div><div class="stat" style="color:#fff;font-size:24px;margin-top:6px">${b}</div></div>`).join('')}</div>
   <h3 style="margin:22px 0 4px">Needs your attention</h3>${Object.keys(by).map(id=>{const c=C.find(x=>x.id===id);return c?`<div class="card row" style="margin-top:10px"><span>${esc(c.title)} · ${by[id]} waiting</span><button class="btn btn-blue btn-sm" onclick="go('projects','${id}')">Review</button></div>`:''}).join('')||'<p class="note" style="text-align:left">Nothing is waiting for you.</p>'}
   <h3 style="margin:22px 0 4px">Recent projects</h3>${C.slice(0,3).map(card).join('')||'<p class="note" style="text-align:left">No projects yet. Create your first project.</p>'}`}
- else if(x==='projects'){v.innerHTML='<div class="sec">Projects</div>'+(C.map(card).join('')||'<p class="note">No projects yet.</p>');if(open)subs(open)}
+ else if(x==='projects'){const {data:dr}=await sb.from('project_drafts').select('id,title,updated_at').order('updated_at',{ascending:false});v.innerHTML='<div class="sec">Projects</div>'+((dr||[]).length?'<h3 style="margin:10px 0 4px">Drafts</h3>'+dr.map(d=>`<div class="card row" style="margin-top:10px"><span>${esc(d.title||'Untitled draft')}<br><small style="color:var(--muted)">${new Date(d.updated_at).toLocaleDateString('en-NG')}</small></span><span><button class="btn btn-blue btn-sm" onclick="resume('${d.id}')">Continue</button> <button class="btn btn-out btn-sm" onclick="delDraft('${d.id}')">Delete</button></span></div>`).join('')+'<h3 style="margin:22px 0 4px">Projects</h3>':'')+(C.map(card).join('')||'<p class="note">No projects yet.</p>');if(open)subs(open)}
  else if(x==='create')form();
  else if(x==='billing'){const {data:RF}=await sb.from('refund_requests').select('*');const RM=Object.fromEntries((RF||[]).map(r=>[r.campaign_id,r]));const f=C.filter(c=>c.funded),tot=f.reduce((a,c)=>a+Number(c.budget),0),due=C.filter(c=>!c.funded&&c.status!=='rejected').reduce((a,c)=>a+Number(c.budget),0);
   v.innerHTML=`<div class="sec">Billing</div><div class="grid" style="grid-template-columns:1fr 1fr"><div class="card" style="padding:18px"><div style="color:var(--muted);font-size:14px">Funded</div><div class="stat" style="font-size:24px">${naira(tot)}</div></div><div class="card" style="padding:18px"><div style="color:var(--muted);font-size:14px">Awaiting payment</div><div class="stat" style="color:#fcd34d;font-size:24px">${naira(due)}</div></div></div>
@@ -46,30 +46,73 @@ async function subs(id){const box=document.getElementById('s-'+id);if(!box)retur
  box.innerHTML=h}
 async function review(sid,ok,cid){let reason=null;if(!ok){reason=prompt('Reason for rejecting (the participant will see this):');if(!reason||!reason.trim())return toast('A reason is required')}
  const {error}=await sb.rpc('review_submission',{p_id:sid,p_approve:ok,p_reason:reason});if(error)return toast(error.message);toast(ok?'Approved':'Rejected');subs(cid)}
-async function form(){const {data:T}=await sb.rpc('task_types');
- v.innerHTML=`<div class="sec">Create project</div><div class="card"><label>Project title<input id="ptitle"></label>
- <label>Task type<select id="ptype">${(T||[]).map(t=>'<option>'+esc(t)+'</option>').join('')}</select></label>
- <label>How many participants do you need?<input id="cnt" type="number" min="10" value="50"></label>
- <label>Project deadline<select id="pdays"><option value="7">7 days</option><option value="14" selected>14 days</option><option value="30">30 days</option></select></label>
- <label class="chk"><input type="checkbox" id="rec"><span>Screen recording required (extra cost per participant)</span></label>
- <div class="box"><p id="sum" style="margin:0 0 8px;color:#C8CFDB;font-size:14px"></p><p id="dsc" style="margin:0 0 8px;color:#6ee7b7;font-size:14px" hidden></p>
- <div class="row"><span style="color:var(--muted)">Estimated total cost</span><b id="ttl" class="stat" style="font-size:24px"></b></div><p style="margin:8px 0 0;font-size:13px;color:var(--muted)">Includes the TaskBridj service fee. You confirm this before anything is charged.</p></div>
- <div id="big" class="note" hidden style="text-align:left">For more than 10,000 participants we agree a price with you.<br><button id="qb" class="btn btn-out btn-sm" style="margin-top:10px">Request custom quote</button></div>
- <div id="fields"><label>What should participants do?<textarea id="ins" rows="4"></textarea></label><label>Who can take part? (optional)<textarea id="preq" rows="2"></textarea></label>
- <label>Questions (one per line)<textarea id="qs" rows="3"></textarea></label><label>Evidence required<input id="pev" placeholder="e.g. Screenshot of the confirmation page"></label>
- <div id="err" class="err" role="alert" hidden></div><button id="save" class="btn btn-blue block" style="margin-top:16px">Submit for review</button></div></div>`;
- let qt;const calc=()=>{const n=Math.max(+cnt.value||0,0);sum.textContent=ptype.value+' × '+n+' participants'+(rec.checked?' · with screen recording':'');
-  const big=n>10000;big_.hidden=!big;fields.hidden=big;clearTimeout(qt);if(big){ttl.textContent='Custom quote';dsc.hidden=true;return}
-  qt=setTimeout(async()=>{const {data}=await sb.rpc('quote_campaign',{p_type:ptype.value,p_count:n,p_rec:rec.checked,p_days:+pdays.value});if(!data)return;ttl.textContent=naira(data.total);
-   dsc.hidden=!(data.discount>0);dsc.textContent='Volume discount applied: '+Math.round(data.discount*100)+'% off'},250)};
- window.big_=document.getElementById('big');[ptype,cnt,rec].forEach(e=>e.oninput=calc);calc();
- qb.onclick=async()=>{const {error}=await sb.rpc('request_quote',{p_type:ptype.value,p_count:+cnt.value,p_note:ptitle.value});toast(error?error.message:'Quote request sent. We will contact you.')};
- const doCreate=async()=>{showErr(err,'');const questions=qs.value.split('\n').map(x=>x.trim()).filter(Boolean);
-  if(!ptitle.value.trim()||!ins.value.trim()||!questions.length||!pev.value.trim())return showErr(err,'Fill in the title, instructions, questions and evidence.');
-  if(!(+cnt.value>=10))return showErr(err,'Choose at least 10 participants.');save.disabled=true;
-  const {error}=await sb.rpc('create_campaign',{p_title:ptitle.value.trim(),p_type:ptype.value,p_ins:ins.value.trim(),p_req:preq.value.trim(),p_q:questions,p_ev:pev.value.trim(),p_count:+cnt.value,p_rec:rec.checked});
-  save.disabled=false;if(error)return showErr(err,error.message);toast('Submitted. Your project goes live after funding is confirmed and it is reviewed.');go('projects')};
- save.onclick=()=>{showErr(err,'');if(!ptitle.value.trim()||!ins.value.trim()||!qs.value.trim()||!pev.value.trim())return showErr(err,'Fill in the title, instructions, questions and evidence.');if(!(+cnt.value>=10))return showErr(err,'Choose at least 10 participants.');confirmBox(doCreate)}}
+let D=null,DID=null,STEP=1,TT=[];
+const DEF=()=>({title:'',type:'',desc:'',count:50,countries:[],device:'Any',exp:'Any',ins:'',req:'',link:'',mins:10,qs:[{q:'',t:'text',o:''}],ev:'',rec:false,start:0,days:14});
+const CTRY=['Nigeria','Ghana','Kenya','South Africa','United Kingdom','United States'];
+const QT={text:'Short answer',long:'Long answer',yesno:'Yes / No',rating:'Rating 1 to 5',choice:'Multiple choice'};
+const NUMK=['count','mins','start','days'];
+const opt=(list,cur)=>list.map(o=>Array.isArray(o)?`<option value="${o[0]}" ${String(cur)===String(o[0])?'selected':''}>${o[1]}</option>`:`<option ${cur===o?'selected':''}>${esc(o)}</option>`).join('');
+async function form(){if(!D){D=DEF();DID=null;STEP=1}if(!TT.length){const {data}=await sb.rpc('task_types');TT=data||[]}if(!D.type)D.type=TT[0]||'';wiz()}
+function wiz(){const N=7;const T=['Project','Participants','Instructions','Evidence','Schedule','Price','Preview'];let h='';
+ if(STEP===1)h=`<label>Project title<input data-k="title" value="${esc(D.title)}"></label><label>Task type<select data-k="type">${opt(TT,D.type)}</select></label><label>Project description<textarea data-k="desc" rows="4">${esc(D.desc)}</textarea></label>`;
+ if(STEP===2)h=`<label>How many participants do you need?<input data-k="count" type="number" min="10" value="${D.count}"></label>
+  <p style="margin:14px 0 4px;color:var(--muted);font-size:14px">Countries (leave all unticked for anywhere)</p>${CTRY.map(c=>`<label class="chk" style="margin-top:8px"><input type="checkbox" data-c="${c}" ${D.countries.includes(c)?'checked':''}><span>${c}</span></label>`).join('')}
+  <label>Device needed<select data-k="device">${opt(['Any','Android','iPhone','Desktop'],D.device)}</select></label>
+  <label>Experience<select data-k="exp">${opt([['Any','Anyone'],['Experienced','Experienced (5+ approved tasks)']],D.exp)}</select></label>`;
+ if(STEP===3)h=`<label>What should participants do?<textarea data-k="ins" rows="4">${esc(D.ins)}</textarea></label><label>Who can take part? (optional)<textarea data-k="req" rows="2">${esc(D.req)}</textarea></label>
+  <label>Reference link (optional)<input data-k="link" placeholder="https://" value="${esc(D.link)}"></label><label>Expected completion time (minutes)<input data-k="mins" type="number" min="1" max="240" value="${D.mins}"></label>
+  <p style="margin:18px 0 4px;color:var(--muted);font-size:14px">Questions (participants must answer every one)</p>
+  ${D.qs.map((x,i)=>`<div class="box"><label style="margin-top:0">Question ${i+1}<input data-qi="${i}" data-qf="q" value="${esc(x.q)}"></label><label>Answer type<select data-qi="${i}" data-qf="t">${opt(Object.entries(QT),x.t)}</select></label>
+  ${x.t==='choice'?`<label>Options (separate with commas)<input data-qi="${i}" data-qf="o" value="${esc(x.o)}"></label>`:''}${D.qs.length>1?`<button type="button" class="btn btn-out btn-sm" style="margin-top:10px" onclick="rmQ(${i})">Remove</button>`:''}</div>`).join('')}
+  ${D.qs.length<20?'<button type="button" class="btn btn-out btn-sm" style="margin-top:12px" onclick="addQ()">Add question</button>':''}`;
+ if(STEP===4)h=`<label>Evidence required<input data-k="ev" placeholder="e.g. Screenshot of the confirmation page" value="${esc(D.ev)}"></label>
+  <label class="chk"><input type="checkbox" data-k="rec" ${D.rec?'checked':''}><span>Screen recording required (extra cost per participant, shown in the Price step)</span></label>
+  <p class="note" style="text-align:left">Every participant also gets a personal proof code that must appear in their evidence.</p>`;
+ if(STEP===5)h=`<label>Project starts<select data-k="start">${opt([[0,'Immediately after approval'],[1,'In 1 day'],[3,'In 3 days'],[7,'In 7 days']],D.start)}</select></label>
+  <label>Project deadline<select data-k="days">${opt([[7,'7 days'],[14,'14 days'],[30,'30 days']],D.days)}</select></label>
+  <p class="note" style="text-align:left">Recruitment closes at the deadline. Unused funds can then be refunded, minus a handling fee.</p>`;
+ const cost=`<div class="box"><p id="sum" style="margin:0 0 8px;color:#C8CFDB;font-size:14px"></p><p id="dsc" style="margin:0 0 8px;color:#6ee7b7;font-size:14px" hidden></p><div class="row"><span style="color:var(--muted)">Estimated total cost</span><b id="ttl" class="stat" style="font-size:24px"></b></div><p style="margin:8px 0 0;font-size:13px;color:var(--muted)">Includes the TaskBridj service fee. You confirm this before anything is charged.</p></div>`;
+ if(STEP===6)h=cost;
+ if(STEP===7)h=`<p style="color:var(--muted);margin:0 0 10px;font-size:14px">This is how participants will see your project.</p><div class="card" style="padding:18px"><div class="row"><span class="tag">${esc(D.type)}</span><b style="color:var(--green)">Reward shown to participants</b></div>
+  <h3 style="font-size:19px">${esc(D.title)}</h3><p style="margin-bottom:8px">${esc(D.desc||D.ins)}</p><p style="font-size:14px;margin-bottom:8px">About ${D.mins} min · ${D.countries.length?esc(D.countries.join(', ')):'Any country'} · ${esc(D.device)} · ${D.exp==='Any'?'Anyone':'Experienced'}</p>
+  <p style="font-size:14px;margin-bottom:8px"><b>Instructions:</b> ${esc(D.ins)}</p>${D.req?`<p style="font-size:14px;margin-bottom:8px"><b>Requirements:</b> ${esc(D.req)}</p>`:''}${D.link?`<p style="font-size:14px;margin-bottom:8px"><b>Link:</b> ${esc(D.link)}</p>`:''}
+  <p style="font-size:14px;margin-bottom:8px"><b>Evidence:</b> ${esc(D.ev)}${D.rec?' + screen recording':''}</p><p style="font-size:14px"><b>Questions:</b></p>${D.qs.filter(x=>x.q.trim()).map(x=>`<p style="font-size:14px;margin:4px 0">• ${esc(x.q)} <span style="color:var(--muted)">(${QT[x.t]})</span></p>`).join('')}</div>${cost}`;
+ v.innerHTML=`<div class="sec">Create project</div><p style="color:var(--muted);margin:0 0 12px">Step ${STEP} of ${N}: ${T[STEP-1]}</p><div class="bar2" style="margin-bottom:16px"><div style="width:${STEP/N*100}%"></div></div>
+  <div class="card">${h}<div id="err" class="err" role="alert" hidden></div>
+  <div class="row" style="margin-top:20px;flex-wrap:nowrap">${STEP>1?'<button id="bk" class="btn btn-out">Back</button>':'<span></span>'}${STEP<N?'<button id="nx" class="btn btn-blue">Next</button>':'<button id="pub" class="btn btn-blue">Confirm and submit</button>'}</div>
+  <div class="row" style="margin-top:14px"><button id="sd" class="btn btn-out btn-sm">Save draft</button><button id="so" class="btn btn-out btn-sm">Start over</button></div></div>`;
+ v.oninput=v.onchange=e=>{const t=e.target;
+  if(t.dataset.k){D[t.dataset.k]=t.type==='checkbox'?t.checked:NUMK.includes(t.dataset.k)?+t.value:t.value}
+  else if(t.dataset.c){D.countries=t.checked?[...new Set([...D.countries,t.dataset.c])]:D.countries.filter(x=>x!==t.dataset.c)}
+  else if(t.dataset.qi!==undefined){D.qs[+t.dataset.qi][t.dataset.qf]=t.value;if(t.dataset.qf==='t'&&e.type==='change')wiz()}};
+ const bk=document.getElementById('bk'),nx=document.getElementById('nx'),pub=document.getElementById('pub');
+ if(bk)bk.onclick=async()=>{await saveDraft(true);STEP--;wiz()};
+ if(nx)nx.onclick=async()=>{const m=check(STEP);if(m)return showErr(err,m);await saveDraft(true);STEP++;wiz()};
+ if(pub)pub.onclick=()=>{const m=check(3)||check(2)||check(4)||check(1);if(m)return showErr(err,m);confirmBox(publish)};
+ sd.onclick=()=>saveDraft(false);so.onclick=()=>{if(confirm('Discard this project form and start again?')){D=null;DID=null;form()}};
+ if(STEP>=6)quote()}
+function check(s){if(s===1){if(D.title.trim().length<3)return 'Enter a project title.';if(!D.type)return 'Choose a task type.'}
+ if(s===2){if(!(D.count>=10&&D.count<=10000))return 'Choose between 10 and 10,000 participants.'}
+ if(s===3){if(!D.ins.trim())return 'Tell participants what to do.';const q=D.qs.filter(x=>x.q.trim());if(!q.length)return 'Add at least one question.';
+  if(q.some(x=>x.t==='choice'&&x.o.split(',').map(a=>a.trim()).filter(Boolean).length<2))return 'Multiple-choice questions need at least 2 options.';
+  if(D.link.trim()&&!/^https?:\/\/\S+$/.test(D.link.trim()))return 'Enter a link starting with http.';if(!(D.mins>=1&&D.mins<=240))return 'Completion time must be 1 to 240 minutes.'}
+ if(s===4){if(!D.ev.trim())return 'Say what evidence participants must upload.'}return ''}
+async function quote(){const n=Math.max(+D.count||0,0);sum.textContent=D.type+' × '+n+' participants'+(D.rec?' · with screen recording':'');
+ const {data}=await sb.rpc('quote_campaign',{p_type:D.type,p_count:n,p_rec:!!D.rec});if(!data||!document.getElementById('ttl'))return;ttl.textContent=naira(data.total);
+ dsc.hidden=!(data.discount>0);dsc.textContent='Volume discount applied: '+Math.round(data.discount*100)+'% off'}
+function addQ(){D.qs.push({q:'',t:'text',o:''});wiz()}
+function rmQ(i){D.qs.splice(i,1);wiz()}
+async function saveDraft(quiet){const t=new Date().toISOString();
+ if(DID){await sb.from('project_drafts').update({title:D.title,data:D,updated_at:t}).eq('id',DID)}
+ else{const {data}=await sb.from('project_drafts').insert({business_id:me.id,title:D.title,data:D,updated_at:t}).select('id').single();if(data)DID=data.id}
+ if(!quiet)toast('Draft saved')}
+async function resume(id){const {data}=await sb.from('project_drafts').select('data').eq('id',id).single();if(!data)return;D={...DEF(),...data.data};DID=id;STEP=1;go('create')}
+async function delDraft(id){if(!confirm('Delete this draft?'))return;await sb.from('project_drafts').delete().eq('id',id);if(DID===id){D=null;DID=null}go('projects')}
+async function publish(){const qs=D.qs.filter(x=>x.q.trim()).map(x=>{const o={q:x.q.trim(),t:x.t};if(x.t==='choice')o.o=x.o.split(',').map(s=>s.trim()).filter(Boolean);return o});
+ const {error}=await sb.rpc('create_campaign',{p_title:D.title.trim(),p_type:D.type,p_ins:D.ins.trim(),p_req:D.req.trim(),p_q:qs,p_ev:D.ev.trim(),p_count:+D.count,p_rec:!!D.rec,p_days:+D.days,
+  p_extra:{description:D.desc.trim(),countries:D.countries.map(c=>c.toLowerCase()),device:D.device,experience:D.exp,minutes:+D.mins,link:D.link.trim(),start_days:+D.start}});
+ if(error)return toast(error.message);
+ if(DID)await sb.from('project_drafts').delete().eq('id',DID);D=null;DID=null;toast('Submitted. Your project goes live after funding is confirmed and it is reviewed.');go('projects')}
 function confirmBox(next){const m=document.createElement('div');m.className='modal';
  m.innerHTML=`<div><h3 style="margin-top:0">Confirm your project</h3><div class="box" style="margin-top:0"><small>${esc(sum.textContent)}</small><b>${esc(ttl.textContent)}</b></div>
  <p style="margin:12px 0;font-size:14px;color:#C8CFDB">Participants are paid only for approved work. If some tasks are not completed by your deadline, you can request a refund of the unused amount minus a handling fee, which is shown before you confirm. Your project goes live after TaskBridj confirms funding.</p>
