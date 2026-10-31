@@ -1,0 +1,19 @@
+<!doctype html><html lang="en"><head><title>New password · TaskBridj</title><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="assets/logo.svg"><link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><link rel="stylesheet" href="assets/style.css"></head><body>
+<div class="nav"><div class="nav-in"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="">TaskBridj</a><a href="login.html">Log in</a></div></div>
+<main class="auth"><h1 style="font-size:30px">Set a new password</h1>
+<p id="st" class="note" style="text-align:left">Checking your reset link…</p>
+<form id="f" hidden novalidate><label>New password (8+ characters)<input id="np1" type="password" autocomplete="new-password"></label>
+<label>Confirm password<input id="np2" type="password" autocomplete="new-password"></label>
+<div id="err" class="err" role="alert" hidden></div><button id="go" class="btn btn-blue block" style="margin-top:22px">Save password</button></form></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
+let ok=false;const ready=()=>{if(ok)return;ok=true;st.hidden=true;f.hidden=false};
+sb.auth.onAuthStateChange((ev,s)=>{if(ev==='PASSWORD_RECOVERY'||(s&&ev==='SIGNED_IN'))ready()});
+(async()=>{const {data:{session}}=await sb.auth.getSession();if(session)ready();
+ setTimeout(()=>{if(!ok)st.textContent='This reset link is invalid or has expired. Request a new one from the login page.'},4000)})();
+f.onsubmit=async e=>{e.preventDefault();showErr(err,'');
+ if(np1.value.length<8)return showErr(err,'Password must be at least 8 characters.');
+ if(np1.value!==np2.value)return showErr(err,'The two passwords do not match.');
+ go.disabled=true;const {error}=await sb.auth.updateUser({password:np1.value});go.disabled=false;
+ if(error)return showErr(err,error.message);
+ toast('Password updated. Please log in.');await sb.auth.signOut();setTimeout(()=>location.href='login.html',1500)};
+</script></body></html>
