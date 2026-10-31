@@ -8,6 +8,8 @@ async function getProfile(){
   const {data} = await sb.from('profiles').select('*').eq('id',session.user.id).single(); return data;
 }
 async function guard(role){
+  const {data:{session:ss}} = await sb.auth.getSession();
+  if(ss && !ss.user.email_confirmed_at){await sb.auth.signOut();location.href='login.html?verify=1';return null}
   const p = await getProfile();
   if(!p){location.href='login.html';return null}
   if(p.role!==role){location.href=dest(p);return null}
