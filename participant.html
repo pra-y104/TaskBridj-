@@ -9,7 +9,7 @@
 <div class="bar" role="navigation"><button data-v="home" class="on"><i class="fa-solid fa-house"></i>Home</button><button data-v="tasks"><i class="fa-solid fa-table-cells"></i>Tasks</button><button data-v="wallet"><i class="fa-solid fa-naira-sign"></i>Wallet</button><button data-v="profile"><i class="fa-solid fa-user"></i>Profile</button></div>
 <div id="modal" class="modal hidden"><div id="mbody"></div></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
-let me,cur='home',sub='open',W={earned:0,withdrawn:0,pending:0},S={min_withdrawal:500,max_tasks:5},C={approved:0,done:0,pending:0};
+let F={type:'',min:0,sort:'amount'};let me,cur='home',sub='open',W={earned:0,withdrawn:0,pending:0},S={min_withdrawal:500,max_tasks:5},C={approved:0,done:0,pending:0};
 const TIER={quick:'Quick check',standard:'Standard test',detailed:'Detailed test'};
 const avail=()=>Number(W.earned)-Number(W.withdrawn);
 const code=()=>'TB-'+String(me.referral_code||'').toUpperCase();
@@ -18,21 +18,26 @@ const code=()=>'TB-'+String(me.referral_code||'').toUpperCase();
  document.querySelectorAll('.bar button').forEach(b=>b.onclick=()=>go(b.dataset.v));go('home')})();
 function go(x){cur=x;document.querySelectorAll('.bar button').forEach(b=>b.classList.toggle('on',b.dataset.v===x));render()}
 async function refresh(){sb.rpc('auto_approve_overdue').then(()=>{},()=>{});const [{data:w},{data:s},{data:sb2}]=await Promise.all([sb.rpc('my_wallet'),sb.rpc('public_settings'),sb.from('submissions').select('status')]);
- W=w||W;S=s||S;C={approved:0,done:0,pending:0};(sb2||[]).forEach(r=>{C.done++;if(r.status==='approved')C.approved++;if(r.status==='pending')C.pending++})}
+ W=w||W;S=s||S;C={approved:0,done:0,pending:0,rejected:0};(sb2||[]).forEach(r=>{if(r.status==='rejected')C.rejected++;C.done++;if(r.status==='approved')C.approved++;if(r.status==='pending')C.pending++})}
 async function render(){v.innerHTML='<p class="note">Loading…</p>';await refresh();
  const first=esc((me.full_name||'').split(' ')[0]);
- if(cur==='home'){v.innerHTML=`<div class="sec">Welcome, ${first}</div><p style="color:var(--muted);margin:0 0 16px">Find legitimate tasks and complete them carefully.</p>
+ if(cur==='home'){const {data:rec}=await sb.from('tasks_open').select('*').order('amount',{ascending:false}).limit(3);const pf=['full_name','country','language','device','interests'];const pct=Math.round(pf.filter(k=>me[k]).length/pf.length*100);v.innerHTML=`<div class="sec">Welcome, ${first}</div><p style="color:var(--muted);margin:0 0 16px">Find legitimate tasks and complete them carefully.</p>
   <button class="btn btn-blue block" onclick="go('tasks')">Find tasks</button>
+  ${pct<100?`<div class="card" style="margin-top:14px;padding:18px"><div class="row"><b>Complete your profile</b><b>${pct}%</b></div><div style="background:#0B1020;border-radius:99px;height:8px;overflow:hidden;margin:10px 0 12px"><div style="width:${pct}%;height:8px;background:var(--blue)"></div></div><button class="btn btn-out btn-sm" onclick="go('profile')">Complete profile</button></div>`:''}
   <div class="grid two" style="margin-top:18px;grid-template-columns:1fr 1fr">${[['Available balance',naira(avail())],['Approved tasks',C.approved],['Completed tasks',C.done],['Pending reviews',C.pending]].map(([a,b])=>`<div class="card" style="padding:18px"><div style="color:var(--muted);font-size:14px">${a}</div><div class="stat" style="color:#fff;font-size:26px;margin-top:6px">${b}</div></div>`).join('')}</div>
+  <h3 style="margin:22px 0 4px">Available now</h3>${(rec||[]).map(c=>`<div class="card row" style="margin-top:10px"><span>${esc(c.title)}<br><small style="color:var(--muted)">${esc(c.task_type)}</small></span><b style="color:var(--green)">${naira(c.amount)}</b></div>`).join('')||'<p class="note" style="text-align:left">No tasks right now.</p>'}<button class="btn btn-out btn-sm" style="margin-top:10px" onclick="go('tasks')">See all tasks</button>
   <div class="card wal" style="margin-top:16px"><div style="color:var(--muted)">Participant wallet</div><div class="stat" style="color:#fff;font-size:34px">${naira(avail())}</div><p style="margin:8px 0 16px">Approved task rewards appear here after review.</p>
   <button class="btn btn-sm" style="background:#fff;color:#000" onclick="go('wallet')">Wallet history</button> <button class="btn btn-sm" style="background:#fff;color:#000" onclick="go('wallet')">Withdraw</button></div>
   <div class="card" style="margin-top:16px"><h3 style="margin-top:0">Invite &amp; Earn</h3><p style="margin-bottom:6px">Share your referral details. Invite rewards are coming soon.</p>
   <div class="box"><small>Referral code</small><b>${esc(code())}</b></div><div class="box"><small>Referral link</small><b>${esc(link())}</b></div>
   <div style="margin-top:14px"><button class="btn btn-sm" style="background:#fff;color:#000" id="cc">Copy code</button> <button class="btn btn-sm" style="background:#fff;color:#000" id="cl">Copy link</button></div></div>`;
   cc.onclick=()=>cp(code());cl.onclick=()=>cp(link())}
- else if(cur==='tasks'){v.innerHTML=`<div class="tabs"><button class="tab ${sub==='open'?'on':''}" id="t1">Available</button><button class="tab ${sub==='mine'?'on':''}" id="t2">My tasks</button></div><div id="list" class="grid"></div>`;
+ else if(cur==='tasks'){v.innerHTML=`<div class="tabs"><button class="tab ${sub==='open'?'on':''}" id="t1">Available</button><button class="tab ${sub==='mine'?'on':''}" id="t2">My tasks</button></div><div id="flt"></div><div id="list" class="grid"></div>`;
   t1.onclick=()=>{sub='open';render()};t2.onclick=()=>{sub='mine';render()};
-  if(sub==='open'){const {data}=await sb.from('tasks_open').select('*').order('amount',{ascending:false});
+  if(sub==='open'){const {data:all}=await sb.from('tasks_open').select('task_type');const types=[...new Set((all||[]).map(x=>x.task_type))].sort();
+   flt.innerHTML=`<div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:12px"><select id="ftype"><option value="">All types</option>${types.map(t=>`<option ${F.type===t?'selected':''}>${esc(t)}</option>`).join('')}</select><select id="fsort"><option value="amount" ${F.sort==='amount'?'selected':''}>Highest reward</option><option value="created_at" ${F.sort==='created_at'?'selected':''}>Newest</option></select></div><select id="fmin" style="margin-bottom:12px">${[[0,'Any reward'],[300,'₦300 and above'],[1000,'₦1,000 and above']].map(([v2,l])=>`<option value="${v2}" ${F.min===v2?'selected':''}>${l}</option>`).join('')}</select>`;
+   ftype.onchange=()=>{F.type=ftype.value;render()};fsort.onchange=()=>{F.sort=fsort.value;render()};fmin.onchange=()=>{F.min=+fmin.value;render()};
+   let q=sb.from('tasks_open').select('*').order(F.sort,{ascending:false});if(F.type)q=q.eq('task_type',F.type);if(F.min)q=q.gte('amount',F.min);const {data}=await q;
    list.innerHTML=(data||[]).map(c=>`<div class="card"><div class="row"><span class="tag">${esc(c.task_type)}</span><b style="color:var(--green)">${naira(c.amount)}</b></div>
    <h3 style="font-size:19px">${esc(c.title)}</h3><p style="margin-bottom:8px">${esc(c.instructions).slice(0,140)}</p>
    <p style="margin-bottom:12px;font-size:14px">${TIER[c.tier]||c.tier} · ${c.open_count} left · Evidence: ${esc(c.evidence_required)}</p>
@@ -43,16 +48,25 @@ async function render(){v.innerHTML='<p class="note">Loading…</p>';await refre
    ${!t.sub_status?`<div class="box" style="margin:0 0 12px"><small>Your proof code (show it in your evidence)</small><b>${esc(t.proof_code)}</b></div>`:''}
    ${t.sub_status==='rejected'?(t.appealed?'<span class="tag wait">Appeal sent</span>':`<button class="btn btn-out btn-sm" onclick="appeal('${t.submission_id}')">Appeal</button>`):''}
    ${t.sub_status?`<span class="tag ${t.sub_status==='approved'?'ok':t.sub_status==='rejected'?'bad':'wait'}">${t.sub_status==='pending'?'under review':t.sub_status}</span>`:`${new Date(t.expires_at)<new Date()?'<span class="tag bad">Time is up · released</span>':`<button class="btn btn-blue btn-sm" onclick="work('${t.task_id}')">Submit work</button> <span style="font-size:13px;color:var(--muted)">Submit before ${new Date(t.expires_at).toLocaleString('en-NG')}</span>`}`}</div>`).join('')||'<p class="note">You have not taken any task yet.</p>'}}
- else if(cur==='wallet'){const {data}=await sb.from('withdrawals').select('*').order('created_at',{ascending:false});const left=Math.max(S.min_withdrawal-avail(),0);
-  v.innerHTML=`<div class="card wal"><div style="color:var(--muted)">Available balance</div><div class="stat" style="color:#fff;font-size:34px">${naira(avail())}</div><p style="margin:6px 0 0">Pending review: ${naira(W.pending)} · Total earned: ${naira(W.earned)}</p></div>
+ else if(cur==='wallet'){const [{data},{data:led}]=await Promise.all([sb.from('withdrawals').select('*').order('created_at',{ascending:false}),sb.from('ledger').select('amount,created_at').order('created_at',{ascending:false}).limit(50)]);const left=Math.max(S.min_withdrawal-avail(),0);
+  const hist=[...(led||[]).map(l=>({d:l.created_at,t:'Task reward approved',a:'+'+naira(l.amount),g:''})),...(data||[]).map(w=>({d:w.created_at,t:'Withdrawal · '+esc(w.bank_name),a:'−'+naira(w.amount),g:w.status}))].sort((x,y)=>new Date(y.d)-new Date(x.d)).map(x=>`<div class="card row" style="margin-top:10px"><span>${x.t}<br><small style="color:var(--muted)">${new Date(x.d).toLocaleDateString('en-NG')}</small></span><span><b style="color:${x.a[0]==='+'?'var(--green)':'#fff'}">${x.a}</b>${x.g?` <span class="tag ${x.g==='paid'?'ok':x.g==='rejected'?'bad':'wait'}">${x.g}</span>`:''}</span></div>`).join('');
+  v.innerHTML=`<div class="card wal"><div style="color:var(--muted)">Available balance</div><div class="stat" style="color:#fff;font-size:34px">${naira(avail())}</div><p style="margin:6px 0 0">Pending review: ${naira(W.pending)} · Total earned: ${naira(W.earned)} · Withdrawn: ${naira(W.withdrawn)}</p></div>
   <div class="card" style="margin-top:14px"><h3 style="margin-top:0">Withdraw</h3><p style="margin-bottom:10px">${left>0?naira(left)+' more to reach the '+naira(S.min_withdrawal)+' minimum.':'You can withdraw now. Minimum '+naira(S.min_withdrawal)+'.'}</p>
   <label>Bank name<input id="bank"></label><label>Account name<input id="accn"></label><label>Account number (10 digits)<input id="accno" inputmode="numeric" maxlength="10"></label>
   <label>Amount (₦)<input id="amt" type="number"></label><div id="err" class="err" role="alert" hidden></div><button id="wd" class="btn btn-blue block" style="margin-top:16px">Request withdrawal</button></div>
-  <h3 style="margin:22px 0 8px">Wallet history</h3>`+((data||[]).map(w=>`<div class="card row" style="margin-top:10px"><span>${naira(w.amount)} · ${esc(w.bank_name)}</span><span class="tag ${w.status==='paid'?'ok':w.status==='rejected'?'bad':'wait'}">${w.status}</span></div>`).join('')||'<p class="note">No withdrawals yet.</p>');
+  <h3 style="margin:22px 0 8px">Wallet history</h3>`+(hist||'<p class="note">No transactions yet.</p>');
   wd.onclick=async()=>{showErr(err,'');wd.disabled=true;const {error}=await sb.rpc('request_withdrawal',{p_amount:+amt.value,p_bank:bank.value,p_name:accn.value,p_number:accno.value});
    wd.disabled=false;if(error)return showErr(err,error.message);toast('Withdrawal requested.');render()}}
- else{v.innerHTML=`<div class="sec">Profile</div><div class="card"><div class="box" style="margin-top:0"><small>Name</small><b>${esc(me.full_name)}</b></div><div class="box"><small>Country</small><b>${esc(me.country||'Not set')}</b></div><div class="box"><small>Device</small><b>${esc(me.device||'Not set')}</b></div>
-  <button class="btn btn-out block" style="margin-top:16px" onclick="logout()">Log out</button></div>`}}
+ else{const dn=C.approved+C.rejected;const rate=dn?Math.round(C.approved/dn*100)+'%':'No reviews yet';
+  v.innerHTML=`<div class="sec">Profile</div><div class="card"><div class="box" style="margin-top:0"><small>Approval rate</small><b>${rate}</b></div><div class="box"><small>Approved tasks</small><b>${C.approved}</b></div>
+  <label>Full name<input id="pfn" value="${esc(me.full_name||'')}"></label><label>Phone (optional)<input id="pfp" inputmode="tel" value="${esc(me.phone||'')}"></label>
+  <label>Country<input id="pfc" value="${esc(me.country||'')}"></label><label>Language<input id="pfl" value="${esc(me.language||'')}"></label>
+  <label>Device<select id="pfd">${['','Android','iPhone','Desktop','Other'].map(o=>`<option ${me.device===o?'selected':''}>${o}</option>`).join('')}</select></label>
+  <label>Interests and skills<input id="pfi" value="${esc(me.interests||'')}"></label><div id="err" class="err" role="alert" hidden></div>
+  <button id="ps" class="btn btn-blue block" style="margin-top:16px">Save profile</button><button class="btn btn-out block" style="margin-top:10px" onclick="logout()">Log out</button></div>`;
+  ps.onclick=async()=>{showErr(err,'');if(!pfn.value.trim())return showErr(err,'Enter your name.');
+   const patch={full_name:pfn.value.trim(),phone:pfp.value.trim(),country:pfc.value.trim(),language:pfl.value.trim(),device:pfd.value,interests:pfi.value.trim()};
+   const {error}=await sb.from('profiles').update(patch).eq('id',me.id);if(error)return showErr(err,error.message);me={...me,...patch};toast('Profile saved')}}}
 async function appeal(sid){const m=prompt('Explain why this rejection is wrong (at least 10 characters):');if(!m||m.trim().length<10)return toast('Please write a short explanation');
  const {error}=await sb.rpc('appeal_submission',{p_sid:sid,p_msg:m.trim()});toast(error?error.message:'Appeal sent. TaskBridj will review it.');render()}
 function link(){return location.origin+'/signup.html?role=participant&ref='+code()}
