@@ -1,0 +1,27 @@
+const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+const HOME = {participant:'participant.html', business:'business.html', admin:'admin.html'};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const naira = n => '\u20A6' + Number(n||0).toLocaleString('en-NG');
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)}
+async function getProfile(){
+  const {data:{session}} = await sb.auth.getSession(); if(!session) return null;
+  const {data} = await sb.from('profiles').select('*').eq('id',session.user.id).single(); return data;
+}
+async function guard(role){
+  const {data:{session:ss}} = await sb.auth.getSession();
+  if(ss && !ss.user.email_confirmed_at){await sb.auth.signOut();location.href='login.html?verify=1';return null}
+  const p = await getProfile();
+  if(!p){location.href='login.html';return null}
+  if(p.suspended){location.href='help.html?suspended=1';return null}
+  if(p.role!==role){location.href=dest(p);return null}
+  if(p.role!=='admin'&&!p.onboarded){location.href='onboarding.html';return null}
+  return p;
+}
+async function logout(){await sb.auth.signOut();location.href='index.html'}
+function navbar(p){
+  return `<div class="nav"><div class="nav-in"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="">TaskBridj</a>
+  <div class="row" style="gap:14px"><span style="color:var(--muted);font-size:14px">${esc(p.full_name||'')}</span><button class="btn btn-out btn-sm" onclick="logout()">Log out</button></div></div></div>`;
+}
+
+function dest(p){ if(p.role==='admin') return HOME.admin; return p.onboarded ? HOME[p.role] : 'onboarding.html'; }
+function showErr(el,msg){el.textContent=msg;el.hidden=!msg}

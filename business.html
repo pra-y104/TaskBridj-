@@ -148,7 +148,7 @@ async function projectPage(id){const c=C.find(z=>z.id===id);if(!c){v.innerHTML='
  ${['pending_review','active'].includes(c.status)?`<button class="btn btn-out btn-sm" onclick="editP('${id}')">Edit details</button>`:''}
  <button class="btn btn-out btn-sm" onclick="dl('${id}')">Download results</button>
  ${c.funded&&ended&&!(rf||[]).length?`<button class="btn btn-out btn-sm" onclick="refund('${id}')">Request refund</button>`:''}</div>
- <h3 style="margin:18px 0 6px">Message participants</h3><p style="margin:0 0 8px;font-size:14px;color:var(--muted)">Everyone who has taken a task in this project sees your message.</p>
+ <h3 style="margin:18px 0 6px">Message participants</h3><p style="margin:0 0 8px;font-size:14px;color:var(--muted)">Messages are announcements to everyone working on this project. You cannot see who they are or chat with them privately, and phone numbers, emails and links to other chat apps are not allowed. This keeps everyone safe.</p>
  <textarea id="mtxt" rows="3" maxlength="1000"></textarea><button class="btn btn-blue btn-sm" style="margin-top:10px" onclick="sendMsg('${id}')">Send message</button>
  ${(ms||[]).map(m=>`<div class="box"><small>${new Date(m.created_at).toLocaleString('en-NG')}</small><b style="font-weight:500">${esc(m.body)}</b></div>`).join('')}
  <h3 style="margin:22px 0 6px">Submissions</h3><div id="s-${id}"></div>`;

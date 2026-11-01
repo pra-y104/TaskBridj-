@@ -12,7 +12,7 @@ let ME=null,OPEN=null;
 const CATS=['Account','Tasks and submissions','Payments and withdrawals','Projects','Refunds and disputes','Other'];
 (async()=>{try{sb}catch(x){sup.innerHTML='<p class="note">Support is unavailable right now.</p>';return}
  ME=await getProfile();if(!ME){sup.innerHTML='<p style="color:var(--muted)">Log in to contact support. <a href="login.html" style="color:#60a5fa">Log in</a></p>';return}
- back.href=HOME[ME.role]||'index.html';back.textContent='Back to dashboard';list()})();
+ back.href=ME.suspended?'index.html':(HOME[ME.role]||'index.html');back.textContent=ME.suspended?'Home':'Back to dashboard';if(ME.suspended)sup.insertAdjacentHTML('beforebegin','<div class="err">Your account is suspended. You can contact support below.</div>');list()})();
 async function list(){OPEN=null;const {data}=await sb.from('tickets').select('*').order('updated_at',{ascending:false});
  sup.innerHTML=`<div class="card"><label style="margin-top:0">Subject<input id="ts" maxlength="120"></label><label>Topic<select id="tc">${CATS.map(c=>`<option>${c}</option>`).join('')}</select></label>
  <label>Describe the problem<textarea id="tb" rows="4" maxlength="2000"></textarea></label><div id="err" class="err" role="alert" hidden></div>
