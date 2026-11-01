@@ -2,14 +2,14 @@
 <style>body{padding-bottom:84px}.bar{position:fixed;left:0;right:0;bottom:0;background:var(--nav);border-top:1px solid var(--line);display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom)}
 .bar button{flex:1;background:none;border:0;color:var(--muted);padding:12px 4px;font-family:inherit;font-size:13px;cursor:pointer}.bar button i{display:block;font-size:19px;margin-bottom:4px}.bar button.on{color:#60a5fa}
 .sec{font-size:26px;font-weight:700;margin:6px 0}.box{background:#0B1020;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-top:12px}.box small{color:var(--muted);display:block}.bar2{background:#0B1020;border-radius:99px;height:8px;overflow:hidden}.bar2 div{height:8px;background:var(--blue)}#mp{display:grid;gap:8px;padding:12px 20px;border-radius:0;border-width:0 0 1px}#mp.hidden{display:none}</style></head><body>
-<div class="nav"><div class="nav-in"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="">TaskBridj</a><button class="btn btn-out btn-sm" id="menu">☰ Menu</button></div></div>
-<div id="mp" class="card hidden"><button class="btn btn-out btn-sm" data-v="home">Home</button><button class="btn btn-out btn-sm" data-v="projects">Projects</button><button class="btn btn-out btn-sm" data-v="create">Create project</button><button class="btn btn-out btn-sm" data-v="billing">Billing</button><button class="btn btn-out btn-sm" data-v="profile">Profile</button><button class="btn btn-blue btn-sm" onclick="logout()">Log out</button></div>
+<div class="nav"><div class="nav-in"><a class="brand" href="index.html"><img src="assets/logo.svg" alt="">TaskBridj</a><span><button class="btn btn-out btn-sm" id="bell" aria-label="Notifications">🔔<span id="bn"></span></button> <button class="btn btn-out btn-sm" id="menu">☰ Menu</button></span></div></div>
+<div id="mp" class="card hidden"><button class="btn btn-out btn-sm" data-v="home">Home</button><button class="btn btn-out btn-sm" data-v="projects">Projects</button><button class="btn btn-out btn-sm" data-v="create">Create project</button><button class="btn btn-out btn-sm" data-v="billing">Billing</button><button class="btn btn-out btn-sm" data-v="profile">Profile</button><button class="btn btn-out btn-sm" data-v="notes">Notifications</button><a class="btn btn-out btn-sm" href="help.html">Help</a><button class="btn btn-blue btn-sm" onclick="logout()">Log out</button></div>
 <div class="wrap" style="padding-top:18px"><div id="v"></div></div>
 <div class="bar" role="navigation"><button data-v="home" class="on"><i class="fa-solid fa-house"></i>Home</button><button data-v="projects"><i class="fa-solid fa-folder-open"></i>Projects</button><button data-v="create"><i class="fa-solid fa-circle-plus"></i>Create</button><button data-v="billing"><i class="fa-solid fa-receipt"></i>Billing</button><button data-v="profile"><i class="fa-solid fa-user"></i>Profile</button></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
 let me,C=[],P={},PEND=[],PN=0;
 (async()=>{me=await guard('business');if(!me)return;
- menu.onclick=e=>{e.stopPropagation();mp.classList.toggle('hidden')};
+ menu.onclick=e=>{e.stopPropagation();mp.classList.toggle('hidden')};bell.onclick=()=>go('notes');badge();setInterval(badge,60000);
  document.addEventListener('click',e=>{if(!mp.contains(e.target))mp.classList.add('hidden')});
  document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{mp.classList.add('hidden');go(b.dataset.v)});go('home')})();
 function go(x,open){document.querySelectorAll('.bar button').forEach(b=>b.classList.toggle('on',b.dataset.v===(x==='project'?'projects':x)));render(x,open)}
@@ -21,7 +21,7 @@ function card(c){const p=P[c.id]||{total:0,claimed:0,approved:0};const pc=p.tota
  <h3 style="font-size:19px">${esc(c.title)}</h3><p style="margin-bottom:10px">${c.funded?'Funded':'Awaiting funding confirmation'}${c.deadline?' · Ends '+new Date(c.deadline).toLocaleDateString('en-NG'):''}${c.reject_reason?' · Reason: '+esc(c.reject_reason):''}</p>
  <div class="bar2"><div style="width:${pc}%"></div></div><p style="margin:8px 0 14px;font-size:14px">${p.claimed} of ${p.total} tests taken · ${p.approved} approved</p>
  <button class="btn btn-blue btn-sm" onclick="go('project','${c.id}')">Open project</button> <button class="btn btn-out btn-sm" onclick="subs('${c.id}')">Review submissions</button> <button class="btn btn-out btn-sm" onclick="dl('${c.id}')">Download results</button><div id="s-${c.id}" style="margin-top:12px"></div></div>`}
-async function render(x,open){v.innerHTML='<p class="note">Loading…</p>';await load();
+async function render(x,open){v.innerHTML='<p class="note">Loading…</p>';await load();if(x==='notes'){await notesView();return}
  if(x==='home'){const first=esc(me.org_name||(me.full_name||'').split(' ')[0]);
   const rem=C.filter(c=>c.funded).reduce((a,c)=>a+Number(c.budget)*(1-Number((P[c.id]||{}).paid_share||0)),0);const stats=[['Active projects',C.filter(c=>c.status==='active').length],['Total project budget',naira(C.filter(c=>c.status!=='rejected').reduce((a,c)=>a+Number(c.budget),0))],['Participants requested',C.reduce((a,c)=>a+Number(c.participants||0),0)],['Completed (approved)',Object.values(P).reduce((a,p)=>a+Number(p.approved),0)],['Awaiting approval',PN],['Remaining budget',naira(Math.round(rem))]];
   const by={};PEND.forEach(s=>by[s.campaign_id]=(by[s.campaign_id]||0)+1);
@@ -164,4 +164,9 @@ function editP(id){const c=C.find(z=>z.id===id);const m=document.createElement('
  document.body.appendChild(m);m.querySelector('#ec').onclick=()=>m.remove();
  m.querySelector('#es').onclick=async()=>{const {error}=await sb.rpc('update_project',{p_cid:id,p_title:m.querySelector('#et').value,p_desc:m.querySelector('#ed').value,p_req:m.querySelector('#er').value,p_link:m.querySelector('#el').value});
   if(error){const e=m.querySelector('#err2');e.textContent=error.message;e.hidden=false;return}m.remove();toast('Saved');go('project',id)}}
+
+async function badge(){const {count}=await sb.from('notifications').select('id',{count:'exact',head:true}).eq('read',false);bn.textContent=count?' '+count:''}
+async function notesView(){const {data}=await sb.from('notifications').select('*').order('created_at',{ascending:false}).limit(50);
+ v.innerHTML='<div class="sec">Notifications</div>'+((data||[]).map(n=>`<div class="card" style="margin-top:10px;padding:16px;${n.read?'':'border-color:var(--blue)'}"><div class="row"><b>${esc(n.title)}</b><small style="color:var(--muted)">${new Date(n.created_at).toLocaleDateString('en-NG')}</small></div><p style="margin:6px 0 0;font-size:14px">${esc(n.body||'')}</p></div>`).join('')||'<p class="note">No notifications yet.</p>');
+ if((data||[]).some(n=>!n.read))sb.from('notifications').update({read:true}).eq('read',false).then(badge)}
 </script></body></html>
