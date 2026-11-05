@@ -8,7 +8,7 @@
 <div class="bar" role="navigation"><button data-v="home" class="on"><i class="fa-solid fa-house"></i>Home</button><button data-v="projects"><i class="fa-solid fa-folder-open"></i>Projects</button><button data-v="create"><i class="fa-solid fa-circle-plus"></i>Create</button><button data-v="billing"><i class="fa-solid fa-receipt"></i>Billing</button><button data-v="profile"><i class="fa-solid fa-user"></i>Profile</button></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script><script src="assets/config.js"></script><script src="assets/app.js"></script><script>
 let me,C=[],P={},PEND=[],PN=0;
-(async()=>{me=await guard('business');if(!me)return;
+(async()=>{me=await guard('business');if(!me)return;const pref=new URLSearchParams(location.search).get('reference');if(pref){history.replaceState(null,'','business.html');setTimeout(()=>verifyPay(pref),400)}
  menu.onclick=e=>{e.stopPropagation();mp.classList.toggle('hidden')};bell.onclick=()=>go('notes');badge();setInterval(badge,60000);
  document.addEventListener('click',e=>{if(!mp.contains(e.target))mp.classList.add('hidden')});
  document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{mp.classList.add('hidden');go(b.dataset.v)});go('home')})();
@@ -144,6 +144,7 @@ async function projectPage(id){const c=C.find(z=>z.id===id);if(!c){v.innerHTML='
  <div class="bar2"><div style="width:${pc}%"></div></div><p style="margin:8px 0 14px;font-size:14px">${p.claimed} of ${p.total} tests taken</p>
  <div class="grid" style="grid-template-columns:1fr 1fr">${box('Participants requested',c.participants||'n/a')}${box('Budget',naira(c.budget))}${box('Awaiting review',n('pending'))}${box('Approved',n('approved'))}${box('Rejected',n('rejected'))}${box('Funding',c.funded?'Funded':'Not yet')}</div>
  <div style="margin:16px 0;display:flex;gap:8px;flex-wrap:wrap">
+ ${!c.funded&&c.status!=='rejected'?`<button class="btn btn-blue btn-sm" onclick="payNow('${id}')">Pay ${naira(c.budget)} now</button>`:''}
  ${c.status==='active'?`<button class="btn btn-out btn-sm" onclick="pauseP('${id}',${!c.paused})">${c.paused?'Resume recruitment':'Pause recruitment'}</button>`:''}
  ${['pending_review','active'].includes(c.status)?`<button class="btn btn-out btn-sm" onclick="editP('${id}')">Edit details</button>`:''}
  <button class="btn btn-out btn-sm" onclick="dl('${id}')">Download results</button>
@@ -169,4 +170,9 @@ async function badge(){const {count}=await sb.from('notifications').select('id',
 async function notesView(){const {data}=await sb.from('notifications').select('*').order('created_at',{ascending:false}).limit(50);
  v.innerHTML='<div class="sec">Notifications</div>'+((data||[]).map(n=>`<div class="card" style="margin-top:10px;padding:16px;${n.read?'':'border-color:var(--blue)'}"><div class="row"><b>${esc(n.title)}</b><small style="color:var(--muted)">${new Date(n.created_at).toLocaleDateString('en-NG')}</small></div><p style="margin:6px 0 0;font-size:14px">${esc(n.body||'')}</p></div>`).join('')||'<p class="note">No notifications yet.</p>');
  if((data||[]).some(n=>!n.read))sb.from('notifications').update({read:true}).eq('read',false).then(badge)}
+
+async function payNow(id){toast('Opening secure payment…');const {data,error}=await sb.functions.invoke('paystack',{body:{action:'init',campaign_id:id}});
+ if(error||!data||!data.url)return toast((data&&data.error)||'Online payment is not available yet. Please contact support.');location.href=data.url}
+async function verifyPay(ref){toast('Confirming your payment…');const {data,error}=await sb.functions.invoke('paystack',{body:{action:'verify',reference:ref}});
+ const s=data&&data.state;toast(error||!data?'Could not confirm yet. Please refresh in a minute.':(s==='paid'||s==='already')?'Payment confirmed. Your project goes live after review.':s==='not_paid'?'The payment was not completed.':'Payment problem: '+(s||data.error));go('projects')}
 </script></body></html>
